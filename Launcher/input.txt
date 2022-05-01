@@ -1,0 +1,42 @@
+﻿
+class Point
+{
+
+	private int x;
+	private int y = 0;
+
+	public static Point Create(int x, int y)
+	{
+		Point p;
+		p.SetX(x);
+		p.SetY(y);
+		p;
+	}
+
+	public int GetX() {x;}
+	public int GetY() {y;}
+
+	public int Abs() Math.Abs(GetX()) + Math.Abs(GetY());
+}
+
+public static int F(int x, int y, int z)
+{
+	while(x < 0)
+	{
+		x++;
+		y = ++y + y+++ --z + z--- x;
+	} x;
+
+	if(x >= z)
+			x;
+		else
+			z;
+
+	if(x >= y)
+		if (x) then y; else z;
+	else
+		if(y >= z)
+			y;
+			else {if (x * 3) (5).ToString();}
+}
+

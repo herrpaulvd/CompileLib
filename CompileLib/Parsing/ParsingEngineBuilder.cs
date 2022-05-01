@@ -1015,7 +1015,7 @@ namespace CompileLib.Parsing
                 {
                     var pStart = splittedProductions[index].Tag;
                     for (int j = 0; j < addedProductionInfo.Count; j++)
-                        if (addedProductionInfo[j] is int other && splittedProductions[other].Tag.Equals(pStart))
+                        if (i != j && addedProductionInfo[j] is int other && splittedProductions[other].Tag.Equals(pStart))
                             grammarBuilder.AddBanRule(j, i);
                 }
             }
