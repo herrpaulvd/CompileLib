@@ -7,25 +7,21 @@ using System.Diagnostics;
 
 namespace CompileLib.ParserTools
 {
+    //using ActionOwnerPair = ValueTuple<LRAction, int>;
+
     internal class GrammarBuilder
     {
         private struct Production
         {
             public int Start;
             public int[] Body;
-            public int PriorityMain;
-            public int PriorityNormal;
-            public int PriorityError;
             public IProductionHandler ProductionHandler;
             public IErrorHandler? ErrorHandler;
 
-            public Production(int start, int[] body, int priorityMain, int priorityNormal, int priorityError, IProductionHandler productionHandler, IErrorHandler? errorHandler)
+            public Production(int start, int[] body, IProductionHandler productionHandler, IErrorHandler? errorHandler)
             {
                 Start = start;
                 Body = body;
-                PriorityMain = priorityMain;
-                PriorityNormal = priorityNormal;
-                PriorityError = priorityError;
                 ProductionHandler = productionHandler;
                 ErrorHandler = errorHandler;
             }
@@ -50,24 +46,40 @@ namespace CompileLib.ParserTools
         }
 
         private readonly List<Production> productions = new();
+        private readonly List<SortedSet<int>?> foldingBans = new();
         private readonly List<int>[] prodByStart;
         private readonly int tokensCount;
         private readonly int nonTokensCount;
         private readonly int fictStart;
         private readonly int fictEOF;
         private readonly int mainProduction;
+        private const int reservedProductions = 1;
 
         public IEnumerable<int> GetBodyByProductionIndex(int index)
             => productions[index].Body;
 
-        public void AddProduction(int start, int[] body, int pMain, int pNormal, int pError, IProductionHandler productionHandler, IErrorHandler? errorHandler)
+        public void AddProduction(int start, int[] body, IProductionHandler productionHandler, IErrorHandler? errorHandler)
         {
             Debug.Assert(
                 start >= 0
                 && start < nonTokensCount
                 && body.All(c => (c < 0) ? ((~c) < tokensCount) : (c < nonTokensCount)));
-            productions.Add(new(start, body, pMain, pNormal, pError, productionHandler, errorHandler));
-            prodByStart[start].Add(productions.Count - 1);
+
+            int prodID = productions.Count;
+            productions.Add(new(start, body, productionHandler, errorHandler));
+            foldingBans.Add(null);
+            prodByStart[start].Add(prodID);
+        }
+
+        private bool FoldingBanned(int p, int c)
+            => foldingBans[p] is not null && foldingBans[p].Contains(c);
+
+        public void AddBanRule(int victim, int client)
+        {
+            victim += reservedProductions;
+            client += reservedProductions;
+            foldingBans[victim] ??= new();
+            foldingBans[victim].UnionWith(First(productions[client].Body));
         }
 
         public GrammarBuilder(int tokensCount, int nonTokensCount, int start)
@@ -79,8 +91,8 @@ namespace CompileLib.ParserTools
             prodByStart = new List<int>[this.nonTokensCount];
             for (int i = 0; i < this.nonTokensCount; i++)
                 prodByStart[i] = new();
-            AddProduction(fictStart, new int[] {start}, 0, 0, 0, MainHandler.Instance, null);
-            mainProduction = productions.Count - 1;
+            mainProduction = productions.Count;
+            AddProduction(fictStart, new int[] {start}, MainHandler.Instance, null);
         }
 
         private bool[] empty;
@@ -309,20 +321,17 @@ namespace CompileLib.ParserTools
             private readonly List<(int, int, int)>[] nonTokensResult;
             private readonly int[] tokensOwners;
             private readonly int[] nonTokensOwners;
-            private readonly Func<int, (int, int)> productionToPriority;
 
-            public GotoResult(int tokensCount, int nonTokensCount, Func<int, (int, int)> productionToPriority)
+            public GotoResult(int tokensCount, int nonTokensCount)
             {
                 tokensResult = new List<(int, int, int)>[tokensCount];
                 tokensOwners = new int[tokensCount];
                 nonTokensResult = new List<(int, int, int)>[nonTokensCount];
                 nonTokensOwners = new int[nonTokensCount];
-                this.productionToPriority = productionToPriority;
             }
 
-            private void Update(List<(int, int, int)>[] result, int[] owners, int x, int prod, int pos, int c)
+            private static void Update(List<(int, int, int)>[] result, int[] owners, int x, int prod, int pos, int c)
             {
-                var p = productionToPriority(prod);
                 if(result[x] is null)
                 {
                     result[x] = new List<(int, int, int)>();
@@ -330,9 +339,7 @@ namespace CompileLib.ParserTools
                 }
                 else
                 {
-                    var oldPriority = productionToPriority(owners[x]);
-                    if (oldPriority.CompareTo(p) < 0)
-                        owners[x] = prod;
+                    owners[x] = prod;
                 }
                 result[x].Add((prod, pos, c));
             }
@@ -375,7 +382,7 @@ namespace CompileLib.ParserTools
 
         private GotoResult Goto(List<(int, int, int)> list)
         {
-            GotoResult result = new(tokensCount, nonTokensCount, p => (productions[p].PriorityMain, productions[p].PriorityNormal));
+            GotoResult result = new(tokensCount, nonTokensCount);
             foreach(var (prod, pos, a) in list)
             {
                 var production = productions[prod];
@@ -429,31 +436,6 @@ namespace CompileLib.ParserTools
             }
         }
 
-        private bool SetCheckingPriority(LRAction[] array, int[] owners, int index, LRAction value, int owner)
-        {
-            if(array[index].IsError)
-            {
-                owners[index] = owner;
-                array[index] = value;
-                return true;
-            }
-
-            var oldPriority = (productions[owners[index]].PriorityMain, productions[owners[index]].PriorityNormal);
-            var newPriority = (productions[owner].PriorityMain, productions[owner].PriorityNormal);
-            var compareResult = oldPriority.CompareTo(newPriority);
-
-            if(compareResult < 0)
-            {
-                owners[index] = owner;
-                array[index] = value;
-                return true;
-            }
-            else
-            {
-                return compareResult > 0;
-            }
-        }
-
         public LRMachine CreateMachine()
         {
             RecalcFirstAndEmpty();
@@ -463,14 +445,6 @@ namespace CompileLib.ParserTools
             List<int[]> @goto = new();
             List<(int, IErrorHandler)> errorHandlers = new();
             Trie trie = new();
-
-            // TODO: rewrite приоритеты на слайсы
-            // как-то посчитать closure по терминалам
-            // buffered DFS???
-
-            // TODO: class Graph, в котором можно будет сделать GetWay, FindLoop
-            // замена меток рёбер\
-            // передать граф в LR??? матричный???
 
             int[] getWay(int list)
             {
@@ -523,22 +497,28 @@ namespace CompileLib.ParserTools
                     currGoto[nt] = index;
                 }
 
-                var maxErrorPriority = (int.MinValue, int.MinValue);
-                var maxCount = 0;
-                IErrorHandler maxErrorHandler = DefaultErrorHandler.Instance;
+                int errorCount = 0;
+                IErrorHandler? errorHandler = null;
                 foreach (var (prod, pos, c) in lists[i])
                 {
                     var start = productions[prod].Start;
                     var body = productions[prod].Body;
                     if (pos == body.Length)
                     {
+                        if (FoldingBanned(prod, c)) continue;
+
                         var handler = productions[prod].ProductionHandler;
                         if (prod == mainProduction && c == fictEOF)
                         {
-                            if(!SetCheckingPriority(currActions, currOwners, ~c, LRAction.AcceptAction, prod))
+                            if (currActions[~c].IsError)
+                            {
+                                currActions[~c] = LRAction.AcceptAction;
+                                currOwners[~c] = prod;
+                            }
+                            else
                             {
                                 throw new LRConflictException(
-                                    new(currActions[~c].Type == LRActionType.Carry, currOwners[~c] - mainProduction - 1),
+                                    new(currActions[~c].Type == LRActionType.Carry, currOwners[~c] - reservedProductions),
                                     new(false, null),
                                     null,
                                     getWay(i));
@@ -546,10 +526,15 @@ namespace CompileLib.ParserTools
                         }
                         else
                         {
-                            if(!SetCheckingPriority(currActions, currOwners, ~c, LRAction.CreateFold(body.Length, start, handler), prod))
+                            if (currActions[~c].IsError)
+                            {
+                                currActions[~c] = LRAction.CreateFold(body.Length, start, handler);
+                                currOwners[~c] = prod;
+                            }
+                            else
                             {
                                 throw new LRConflictException(
-                                    new(currActions[~c].Type == LRActionType.Carry, currOwners[~c] - mainProduction - 1),
+                                    new(currActions[~c].Type == LRActionType.Carry, currOwners[~c] - reservedProductions),
                                     new(false, prod - mainProduction - 1),
                                     ~c,
                                     getWay(i));
@@ -558,23 +543,21 @@ namespace CompileLib.ParserTools
                     }
                     else
                     {
-                        var errorHandler = productions[prod].ErrorHandler;
-                        if (errorHandler is null)
-                            continue;
-                        var errorPriority = (productions[prod].PriorityMain, productions[prod].PriorityError);
-                        if(errorPriority.CompareTo(maxErrorPriority) > 0)
+                        // maybe conflict. resolve?
+                        if(errorHandler is null)
                         {
-                            maxErrorPriority = errorPriority;
-                            maxCount = pos;
-                            maxErrorHandler = errorHandler;
+                            errorHandler = productions[prod].ErrorHandler;
+                            if (errorHandler is not null)
+                                errorCount = pos;
                         }
                     }
                 }
 
                 actions.Add(currActions);
                 @goto.Add(currGoto);
-                errorHandlers.Add((maxCount, maxErrorHandler));
+                errorHandlers.Add((errorCount, errorHandler ?? DefaultErrorHandler.Instance));
             }
+
             return new LRMachine(actions.ToArray(), @goto.ToArray(), errorHandlers.ToArray(), new Common.Token(~fictEOF, "", -1, -1));
         }
     }

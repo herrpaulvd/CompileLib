@@ -9,6 +9,7 @@ using CompileLib.LexerTools;
 
 namespace CompileLib.Parsing
 {
+    // MAYBE TODO))) Priority-switch[?], rather-carry[DONE]
     internal class RegexParser
     {
         private class Expr
@@ -16,7 +17,7 @@ namespace CompileLib.Parsing
             // whole expression
             [SetTag("expr")]
             public static SmartFSMBuilder MakeExpression(
-                [Optional][RequireTags("expr")] SmartFSMBuilder expr,
+                [Optional(false)][RequireTags("expr")] SmartFSMBuilder expr,
                 [TogetherWith][Keywords("|")] string _,
                 [RequireTags("or-branch")] SmartFSMBuilder branch
                 )
@@ -27,6 +28,16 @@ namespace CompileLib.Parsing
                     return SmartFSMBuilder.CreateUnion(expr, branch);
             }
 
+            [SetTag("expr-inbr")]
+            public static SmartFSMBuilder MakeExpression_Inbr(
+                [Optional(false)][RequireTags("expr-inbr")] SmartFSMBuilder expr,
+                [TogetherWith][Keywords("|")] string _,
+                [RequireTags("or-branch-inbr")] SmartFSMBuilder branch
+                )
+            {
+                return MakeExpression(expr, _, branch);
+            }
+
             [SetTag("or-branch")]
             public static SmartFSMBuilder OrBranch(
                 [Many(false)][RequireTags("or-branch-item")] SmartFSMBuilder[] items)
@@ -34,7 +45,31 @@ namespace CompileLib.Parsing
                 return items.Aggregate(SmartFSMBuilder.CreateConcatenation);
             }
 
+            [SetTag("or-branch-inbr")]
+            public static SmartFSMBuilder OrBranch_Inbr(
+                [Many(false)][RequireTags("or-branch-item-inbr")] SmartFSMBuilder[] items)
+            {
+                return OrBranch(items);
+            }
+
             [SetTag("or-branch-item")]
+            public static SmartFSMBuilder Common2OrBranch([RequireTags("or-branch-item-common")] SmartFSMBuilder item)
+                => item;
+
+            [SetTag("or-branch-item-inbr")]
+            public static SmartFSMBuilder Common2OrBranch_Inbr([RequireTags("or-branch-item-common")] SmartFSMBuilder item)
+                => item;
+
+            [SetTag("or-branch-item-common")]
+            public static SmartFSMBuilder OrBranchItem_brackets(
+                [Keywords("(")] string brOpen,
+                [RequireTags("expr-inbr")] SmartFSMBuilder expression,
+                [Keywords(")")] string brClose)
+            {
+                return expression;
+            }
+
+            [SetTag("or-branch-item-common")]
             public static SmartFSMBuilder OrBranchItem_nonSpec(
                 [RequireTags("non-spec", "digit")] string s)
             {
@@ -42,7 +77,7 @@ namespace CompileLib.Parsing
                 return SmartFSMBuilder.CreateBySinglePredicate(c => c == it);
             }
 
-            [SetTag("or-branch-item")]
+            [SetTag("or-branch-item-common")]
             public static SmartFSMBuilder QuotedChar(
                 [Keywords("\\")] string backslash,
                 [Keywords("^", ".", "[", "]", "$", "(", ")", "|", "*", "+", "?", "{", "}", "\\")] string s
@@ -54,7 +89,7 @@ namespace CompileLib.Parsing
 
             [SetTag("or-branch-item")]
             public static SmartFSMBuilder Spec(
-                [Keywords(".", "]", "}", "^", "$", "-", ":", ",")] string s)
+                [Keywords(".", "]", "}", "^", "$", "-", ":", ",", ")")] string s)
             {
                 char it = s[0];
                 if (it == '.')
@@ -63,21 +98,24 @@ namespace CompileLib.Parsing
                     return SmartFSMBuilder.CreateBySinglePredicate(c => c == it);
             }
 
-            [SetTag("or-branch-item")]
-            [ProductionPriority(-1)]
-            public static SmartFSMBuilder OrBranchSpecChar_brClose([Keywords(")")] string _)
-                => SmartFSMBuilder.CreateBySinglePredicate(c => c == ')');
+            [SetTag("or-branch-item-inbr")]
+            public static SmartFSMBuilder Spec_Inbr(
+                [Keywords(".", "]", "}", "^", "$", "-", ":", ",")] string s)
+            {
+                return Spec(s);
+            }
 
-            [SetTag("or-branch-item")]
+            [SetTag("or-branch-item-common")]
             public static SmartFSMBuilder BracketExpr(
                 [Keywords("[")] string brOpen,
-                [Optional][Keywords("^")] string circumFlex,
+                [Optional(true)][Keywords("^")] string circumflex,
+                [Optional(true)][Keywords("]")] string brMember,
                 [Many(false)][RequireTags("bracket-expr-item")] Predicate<char>[] items,
                 [Keywords("]")] string brClose
                 )
             {
-                return items.Select(
-                    circumFlex is null
+                return (brMember is null ? items : items.Prepend(c => c == ']')).Select(
+                    circumflex is null
                     ? new Func<Predicate<char>, SmartFSMBuilder>(SmartFSMBuilder.CreateBySinglePredicate)
                     : new Func<Predicate<char>, SmartFSMBuilder>(p => SmartFSMBuilder.CreateBySinglePredicate(c => !p(c))))
                     .Aggregate(SmartFSMBuilder.CreateUnion);
@@ -92,36 +130,23 @@ namespace CompileLib.Parsing
 
             [SetTag("bracket-expr-item-simple")]
             public static string BracketExprSpec(
-                [Keywords(".", "[", "\\", "(", ")", "*", "+", "?", "{", "}", "|", "$", ":", ",")] string s)
+                [Keywords(".", "\\", "(", ")", "*", "+", "?", "{", "}", "|", "$", ":", ",", "^", "-")] string s)
             {
                 return s;
-            }
-
-            [SetTag("bracket-expr-item-simple")]
-            [ProductionPriority(-1)]
-            public static string BracketExprSpec2([Keywords("]", "^", "-")] string s)
-            {
-                return s;
-            }
-
-            [SetTag("bracket-expr-item")]
-            public static Predicate<char> BracketExpr_simpleItem([RequireTags("bracket-expr-item-simple")] string s)
-            {
-                char it = s[0];
-                return c => c == it;
             }
 
             internal static IDictionary<string, Predicate<char>> charClasses;
 
             [SetTag("bracket-expr-item")]
-            [ProductionPriority(1)]
             public static Predicate<char> CharClass(
                 [Keywords("[")] string sqBrOpen,
-                [Keywords(":")] string colon1,
-                [Many(false)][RequireTags("non-spec", "digit")] Token[] name,
-                [Keywords(":")] string colon2,
-                [Keywords("]")] string sqBrClose)
+                [Optional(true)][Keywords(":")] string colon1,
+                [TogetherWith][RequireTags("char-class-name")] Token[] name,
+                [TogetherWith][Keywords(":")] string colon2,
+                [TogetherWith][Keywords("]")] string sqBrClose)
             {
+                if (colon1 is null)
+                    return c => c == '[';
                 string s = new(name.SelectMany(e => e.Self).ToArray());
                 if (charClasses.ContainsKey(s))
                     return charClasses[s];
@@ -129,15 +154,25 @@ namespace CompileLib.Parsing
                     throw new RegexParsingException("Invalid char class", name[0].Line, name[0].Column);
             }
 
+            [SetTag("char-class-name")]
+            public static Token[] CharClassName([Many(false)][RequireTags("non-spec", "digit")] Token[] name)
+            {
+                return name;
+            }
+
             [SetTag("bracket-expr-item")]
-            [ProductionPriority(1)]
             public static Predicate<char> Range(
                 [RequireTags("bracket-expr-item-simple")] string start,
-                [Keywords("-")] string _,
-                [RequireTags("bracket-expr-item-simple")] string end
+                [Optional(true)][Keywords("-")] string _,
+                [TogetherWith][RequireTags("bracket-expr-item-simple")] string end
                 )
             {
                 char startChar = start[0];
+                if(_ is null)
+                {
+                    return c => c == startChar;
+                }
+
                 char endChar = end[0];
                 return c => startChar <= c && c <= endChar;
             }
@@ -161,6 +196,14 @@ namespace CompileLib.Parsing
                 }
             }
 
+            [SetTag("or-branch-item-inbr")]
+            public static SmartFSMBuilder Closure_Inbr(
+                [RequireTags("or-branch-item-inbr")] SmartFSMBuilder operand,
+                [Keywords("*", "+", "?")] string sign)
+            {
+                return Closure(operand, sign);
+            }
+
             [SetTag("or-branch-item")]
             public static SmartFSMBuilder Interval(
                 [RequireTags("or-branch-item")] SmartFSMBuilder operand,
@@ -169,6 +212,16 @@ namespace CompileLib.Parsing
                 [Keywords("}")] string brClose)
             {
                 return SmartFSMBuilder.CreateSimpleDup(operand, int.Parse(count.SelectMany(e => e).ToArray()));
+            }
+
+            [SetTag("or-branch-item-inbr")]
+            public static SmartFSMBuilder Interval_Inbr(
+                [RequireTags("or-branch-item-inbr")] SmartFSMBuilder operand,
+                [Keywords("{")] string brOpen,
+                [Many(false)][RequireTags("digit")] string[] count,
+                [Keywords("}")] string brClose)
+            {
+                return Interval(operand, brOpen, count, brClose);
             }
 
             [SetTag("or-branch-item")]
@@ -186,6 +239,18 @@ namespace CompileLib.Parsing
 
                 int y = int.Parse(end.SelectMany(e => e).ToArray());
                 return SmartFSMBuilder.CreateSegment(operand, x, y);
+            }
+
+            [SetTag("or-branch-item-inbr")]
+            public static SmartFSMBuilder Interval_Inbr(
+                [RequireTags("or-branch-item-inbr")] SmartFSMBuilder operand,
+                [Keywords("{")] string brOpen,
+                [Many(false)][RequireTags("digit")] string[] start,
+                [Keywords(",")] string comma,
+                [Many(true)][RequireTags("digit")] string[] end,
+                [Keywords("}")] string brClose)
+            {
+                return Interval(operand, brOpen, start, comma, end, brClose);
             }
         }
 

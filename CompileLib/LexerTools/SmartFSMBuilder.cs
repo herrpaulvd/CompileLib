@@ -8,6 +8,7 @@ using TransList = System.Collections.Generic.List<(System.Predicate<char>, int)>
 
 namespace CompileLib.LexerTools
 {
+    // TODO: optimizations
     internal class SmartFSMBuilder
     {
         private readonly List<TransList> transition = new();
@@ -65,7 +66,7 @@ namespace CompileLib.LexerTools
                 if (a.isFinal[i])
                     result.transition[i].AddRange(bConvFunc(b.transition[0]));
 
-            if (a.isFinal[0])
+            if (b.isFinal[0])
                 result.isFinal.AddRange(a.isFinal);
             else
                 result.isFinal.AddRange(Enumerable.Repeat(false, a.isFinal.Count));

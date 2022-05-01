@@ -37,6 +37,8 @@ namespace CompileLib.ParserTools
             => new(LRActionType.Fold, count, nt, productionHandler);
         public static readonly LRAction AcceptAction
             = new(LRActionType.Accept, 0, 0, null);
+        public static readonly LRAction ErrorAction
+            = new(LRActionType.Error, 0, 0, null);
 
         public int NextState => arg1;
         public int Count => arg1;
@@ -136,6 +138,7 @@ namespace CompileLib.ParserTools
             foreach(var t in tokens)
                 Perform(t);
             Perform(finalToken);
+            if (elements.Count == 0) return null;
             return elements.Peek();
         }
     }

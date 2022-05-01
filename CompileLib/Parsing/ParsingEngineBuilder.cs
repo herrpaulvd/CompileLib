@@ -28,9 +28,9 @@ namespace CompileLib.Parsing
             return new ParsingEngineBuildingException($"[Method {method.Name}] {message}");
         }
 
-        private static Exception GetBuildingException(MethodInfo method, ParameterInfo parameter, string message)
+        private static Exception GetBuildingException(string methodName, string parameterName, string message)
         {
-            return new ParsingEngineBuildingException($"[Method {method.Name}, parameter {parameter.Name}] {message}");
+            return new ParsingEngineBuildingException($"[Method {methodName}, parameter {parameterName}] {message}");
         }
 
         private static Exception GetParsingException(MethodInfo method, ParameterInfo parameter, string message)
@@ -56,24 +56,39 @@ namespace CompileLib.Parsing
             {
                 return ProductionBodyElement.ShowHelperTag(this);
             }
+
+            public override bool Equals(object? obj)
+            {
+                return obj is HelperTag ht && ht.Name == Name;
+            }
+
+            public override int GetHashCode()
+            {
+                throw new NotImplementedException();
+            }
         }
 
         private struct ProductionBodyElement
         {
             public object TagType;
             public object RepetitionCount;
+            public string MethodName;
+            public string ParameterName;
 
-            public void SetTagType(MethodInfo method, ParameterInfo parameter, Attribute tagType)
+            public ProductionBodyElement ReplaceTags(object tagType, object repetitionCount)
+                => new() { TagType = tagType, RepetitionCount = repetitionCount, MethodName = MethodName, ParameterName = ParameterName };
+
+            public void SetTagType(Attribute tagType)
             {
                 if (TagType is not null)
-                    throw GetBuildingException(method, parameter, "Only one tag requiring attribute is allowed");
+                    throw GetBuildingException(MethodName, ParameterName, "Only one tag requiring attribute is allowed");
                 TagType = tagType;
             }
 
-            public void SetRepetitionCount(MethodInfo method, ParameterInfo parameter, Attribute repetitionCount)
+            public void SetRepetitionCount(Attribute repetitionCount)
             {
                 if (RepetitionCount is not null)
-                    throw GetBuildingException(method, parameter, "At most one repetition count attribute is allowed");
+                    throw GetBuildingException(MethodName, ParameterName, "At most one repetition count attribute is allowed");
                 RepetitionCount = repetitionCount;
             }
 
@@ -88,7 +103,6 @@ namespace CompileLib.Parsing
             public static string ShowHelperTag(HelperTag ht)
                 => "[helper tag]" + ht.Name;
 
-            [Obsolete] // TODO: изменено для дебага, потом переправить
             public string FullTagName
             {
                 get
@@ -108,9 +122,8 @@ namespace CompileLib.Parsing
                     }
                     else
                     {
-                        //Debug.Fail("Unexpected tag type attribute");
-                        //result = "";
-                        result = $"@[{TagType.GetType()}][{RepetitionCount.GetType()}]";
+                        Debug.Fail("Unexpected tag type attribute");
+                        result = "";
                     }
 
                     //Debug.Assert(RepetitionCount is SingleAttribute);
@@ -123,14 +136,11 @@ namespace CompileLib.Parsing
         private struct Production
         {
             public object Tag; // string or HelperTag
-            public bool IsErrorProduction;
             public bool HasErrorHandler;
-            public int ProductionPriority;
-            public int ErrorHandlingPriority;
+            public bool Greedy;
+            public int Divisor;
             public List<ProductionBodyElement> Body;
             public MethodInfo Handler;
-
-            public int MainPriority => IsErrorProduction ? -1 : 0;
 
             public static List<Production> SplitIntoSimpleProductions(Production self)
             {
@@ -140,12 +150,11 @@ namespace CompileLib.Parsing
                     => new()
                     {
                         Tag = subTag,
-                        IsErrorProduction = self.IsErrorProduction,
                         HasErrorHandler = self.HasErrorHandler,
-                        ProductionPriority = self.ProductionPriority,
-                        ErrorHandlingPriority = self.ErrorHandlingPriority,
                         Body = new(),
-                        Handler = self.Handler
+                        Handler = self.Handler,
+                        Greedy = false,
+                        Divisor = self.Divisor
                     };
 
                 ProductionBodyElement SplitBodyElement(ProductionBodyElement e)
@@ -160,9 +169,11 @@ namespace CompileLib.Parsing
                         {
                             Production sub = MakeCopy(subTag);
                             result.Add(sub);
-                            sub.Body.Add(new ProductionBodyElement() { TagType = new KeywordsAttribute(kw), RepetitionCount = defaultSingleAttribute });
+                            //sub.Body.Add(new ProductionBodyElement() { TagType = new KeywordsAttribute(kw), RepetitionCount = defaultSingleAttribute });
+                            sub.Body.Add(e.ReplaceTags(new KeywordsAttribute(kw), defaultSingleAttribute));
                         }
-                        return new() { TagType = subTag, RepetitionCount = defaultSingleAttribute };
+                        //return new() { TagType = subTag, RepetitionCount = defaultSingleAttribute };
+                        return e.ReplaceTags(subTag, defaultSingleAttribute);
                     }
                     else if (e.TagType is RequireTagsAttribute requireTagsAttr)
                     {
@@ -174,9 +185,11 @@ namespace CompileLib.Parsing
                         {
                             Production sub = MakeCopy(subTag);
                             result.Add(sub);
-                            sub.Body.Add(new ProductionBodyElement() { TagType = new RequireTagsAttribute(tag), RepetitionCount = defaultSingleAttribute });
+                            //sub.Body.Add(new ProductionBodyElement() { TagType = new RequireTagsAttribute(tag), RepetitionCount = defaultSingleAttribute });
+                            sub.Body.Add(e.ReplaceTags(new RequireTagsAttribute(tag), defaultSingleAttribute));
                         }
-                        return new() { TagType = subTag, RepetitionCount = defaultSingleAttribute };
+                        //return new() { TagType = subTag, RepetitionCount = defaultSingleAttribute };
+                        return e.ReplaceTags(subTag, defaultSingleAttribute);
                     }
                     else if (e.TagType is AnyTokenAttribute || e.TagType is AnyTagAttribute)
                     {
@@ -201,40 +214,62 @@ namespace CompileLib.Parsing
                     else if(self.Body[i].RepetitionCount is OptionalAttribute optionalAttribute)
                     {
                         HelperTag subTag = new(optionalAttribute);
-                        newThis.Body.Add(new ProductionBodyElement() { TagType = subTag, RepetitionCount = defaultSingleAttribute });
+                        var subStart = new ProductionBodyElement() { TagType = subTag, RepetitionCount = defaultSingleAttribute, MethodName = self.Body[i].MethodName };
+                        List<string> subParamNames = new();
 
                         // empty production
                         Production emptySub = MakeCopy(subTag);
-                        result.Add(emptySub);
-
                         Production sub = MakeCopy(subTag);
-                        result.Add(sub);
+                        sub.Greedy = optionalAttribute.Greedy;
+                        sub.Divisor = 1;
                         sub.Body.Add(SplitBodyElement(self.Body[i]));
+                        subParamNames.Add(self.Body[i].ParameterName);
+                        int divisor = 1;
                         for (i++; i < self.Body.Count && self.Body[i].RepetitionCount is TogetherWithAttribute; i++)
+                        {
                             sub.Body.Add(SplitBodyElement(self.Body[i]));
+                            subParamNames.Add(self.Body[i].ParameterName);
+                            divisor++;
+                        }
+
+                        subStart.ParameterName = string.Join(",", subParamNames);
+                        newThis.Body.Add(subStart);
+
+                        emptySub.Divisor = divisor;
+                        result.Add(emptySub);
+                        sub.Divisor = divisor;
+                        result.Add(sub);
                     }
                     else if(self.Body[i].RepetitionCount is ManyAttribute manyAttribute)
                     {
                         HelperTag subTag = new(manyAttribute);
-                        var subStart = new ProductionBodyElement() { TagType = subTag, RepetitionCount = defaultSingleAttribute };
-                        newThis.Body.Add(subStart);
+                        var subStart = new ProductionBodyElement() { TagType = subTag, RepetitionCount = defaultSingleAttribute, MethodName = self.Body[i].MethodName };
+                        List<string> subParamNames = new();
 
-                        // empty production
+                        // empty or non-rec production
                         Production sub1 = MakeCopy(subTag);
-                        result.Add(sub1);
-
                         Production sub2 = MakeCopy(subTag);
-                        result.Add(sub2);
                         var e = SplitBodyElement(self.Body[i]);
                         sub2.Body.Add(e);
                         if (!manyAttribute.CanBeEmpty) sub1.Body.Add(e);
+                        int divisor = 1;
                         for (i++; i < self.Body.Count && self.Body[i].TagType is TogetherWithAttribute; i++)
                         {
+                            subParamNames.Add(self.Body[i].ParameterName);
                             e = SplitBodyElement(self.Body[i]);
                             sub2.Body.Add(e);
                             if (!manyAttribute.CanBeEmpty) sub1.Body.Add(e);
+                            divisor++;
                         }
+
+                        subStart.ParameterName = string.Join(",", subParamNames);
                         sub2.Body.Add(subStart);
+                        newThis.Body.Add(subStart);
+
+                        sub1.Divisor = 1;
+                        result.Add(sub1);
+                        sub2.Divisor = 1;
+                        result.Add(sub2);
                     }
                     else
                     {
@@ -312,10 +347,18 @@ namespace CompileLib.Parsing
                 AddTokenTag(tag);
             SortedDictionary<string, Predicate<char>> classes = new()
             {
-                // TODO: дописать
+                { "alnum", char.IsLetterOrDigit },
                 { "alpha", char.IsLetter },
-                { "digit", char.IsDigit },
-                { "alnum", char.IsLetterOrDigit }
+                { "blank", c => c == ' ' || c == '\t'},
+                { "cntrl", char.IsControl},
+                { "digit", char.IsDigit},
+                { "graph", c => (c >= 0x21 && c <= 0x7E) || (c >= 0x100) },
+                { "lower", c => char.IsLetter(c) && char.IsLower(c)},
+                { "print", c => (c >= 0x20 && c <= 0x7E) || (c >= 0x100) },
+                { "punct", char.IsPunctuation},
+                { "space", char.IsWhiteSpace},
+                { "upper", c => char.IsLetter(c) && char.IsUpper(c)},
+                { "xdigit", c => char.IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')}
             };
             for (int i = 0; i < customClasses.Length; i++)
                 classes.Add(i.ToString(), customClasses[i]);
@@ -375,40 +418,28 @@ namespace CompileLib.Parsing
                     var p = new Production
                     {
                         Tag = tagAttr.Name,
-                        Handler = method
+                        Handler = method,
+                        Body = new()
                     };
-                    var errorProductionAttr = method.GetCustomAttribute<ErrorProductionAttribute>();
-                    if (errorProductionAttr is not null)
-                    {
-                        p.IsErrorProduction = true;
-                    }
-                    var productionPriorityAttr = method.GetCustomAttribute<ProductionPriorityAttribute>();
-                    if (productionPriorityAttr is not null)
-                    {
-                        p.ProductionPriority = productionPriorityAttr.Priority;
-                    }
-                    var errorHandlingPriorityAttr = method.GetCustomAttribute<ErrorHandlingPriorityAttribute>();
-                    if(errorHandlingPriorityAttr is not null)
-                    {
-                        p.ErrorHandlingPriority = errorHandlingPriorityAttr.Priority;
-                    }
-                    p.Body = new();
                     var parameters = method.GetParameters();
                     for(int i = 0; i < parameters.Length; i++)
                     {
                         var e = new ProductionBodyElement();
                         var param = parameters[i];
+                        e.MethodName = method.Name;
+                        e.ParameterName = param.Name;
+
                         if (param.ParameterType.IsValueType)
-                            throw GetBuildingException(method, param, "No Value Type is allowed to be production method parameter");
+                            throw GetBuildingException(method.Name, param.Name, "No Value Type is allowed to be production method parameter");
 
                         // handler attrs
                         var errorHandlerAttr = param.GetCustomAttribute<ErrorHandlerAttribute>();
                         if (errorHandlerAttr is not null)
                         {
                             if (i < parameters.Length - 1)
-                                throw GetBuildingException(method, param, "Error Handler attribute must mark the last parameter of the method");
+                                throw GetBuildingException(method.Name, param.Name, "Error Handler attribute must mark the last parameter of the method");
                             if (param.ParameterType != typeof(ErrorHandlingDecider))
-                                throw GetBuildingException(method, param, "Error Handler attribute must mark the last parameter with the type " + typeof(ErrorHandlingDecider).FullName);
+                                throw GetBuildingException(method.Name, param.Name, "Error Handler attribute must mark the last parameter with the type " + typeof(ErrorHandlingDecider).FullName);
                             p.HasErrorHandler = true;
                             break;
                         }
@@ -418,66 +449,62 @@ namespace CompileLib.Parsing
                         if (requireTagsAttr is not null)
                         {
                             if (requireTagsAttr.Tags.Count == 0)
-                                throw GetBuildingException(method, param, "At least one tag must be required");
+                                throw GetBuildingException(method.Name, param.Name, "At least one tag must be required");
                             foreach(var tag in requireTagsAttr.Tags)
                             {
                                 if (tag is null)
-                                    throw GetBuildingException(method, param, "Null-tag cannot be required");
+                                    throw GetBuildingException(method.Name, param.Name, "Null-tag cannot be required");
                                 else if (IsSpecial(tag))
-                                    throw GetBuildingException(method, param, "Special tag cannot be required");
+                                    throw GetBuildingException(method.Name, param.Name, "Special tag cannot be required");
                             }
-                            e.SetTagType(method, param, requireTagsAttr);
+                            e.SetTagType(requireTagsAttr);
                         }
                         var keywordAttr = param.GetCustomAttribute<KeywordsAttribute>();
                         if (keywordAttr is not null)
                         {
                             if(keywordAttr.Keywords is null)
-                                throw GetBuildingException(method, param, "Null-token cannot be required");
-                            e.SetTagType(method, param, keywordAttr);
+                                throw GetBuildingException(method.Name, param.Name, "Null-token cannot be required");
+                            e.SetTagType(keywordAttr);
                         }
                         var anyTagAttr = param.GetCustomAttribute<AnyTagAttribute>();
                         if (anyTagAttr is not null)
                         {
-                            if (!p.IsErrorProduction)
-                                throw GetBuildingException(method, param, "Any Tag attribute is allowed only in Error Productions");
-                            e.SetTagType(method, param, anyTagAttr);
+                            e.SetTagType(anyTagAttr);
                         }
                         var anyTokenAttr = param.GetCustomAttribute<AnyTokenAttribute>();
                         if(anyTokenAttr is not null)
                         {
-                            if (!p.IsErrorProduction)
-                                throw GetBuildingException(method, param, "Any Token attribute is allowed only in Error Productions");
-                            e.SetTagType(method, param, anyTokenAttr);
+                            e.SetTagType(anyTokenAttr);
                         }
                         // exactly one such attr must exist
                         if (e.TagType is null)
-                            throw GetBuildingException(method, param, "Exactly one tag requiring attribute must mark the parameter");
+                            throw GetBuildingException(method.Name, param.Name, "Exactly one tag requiring attribute must mark the parameter");
 
                         // count attrs
                         var singleAttr = param.GetCustomAttribute<SingleAttribute>();
                         if (singleAttr is not null)
                         {
-                            e.SetRepetitionCount(method, param, singleAttr);
+                            e.SetRepetitionCount(singleAttr);
                         }
                         var optionalAttr = param.GetCustomAttribute<OptionalAttribute>();
                         if (optionalAttr is not null)
                         {
-                            e.SetRepetitionCount(method, param, optionalAttr);
+                            e.SetRepetitionCount(optionalAttr);
                         }
                         var manyAttr = param.GetCustomAttribute<ManyAttribute>();
                         if (manyAttr is not null)
                         {
-                            e.SetRepetitionCount(method, param, manyAttr);
+                            e.SetRepetitionCount(manyAttr);
                         }
                         var togetherWithAttr = param.GetCustomAttribute<TogetherWithAttribute>();
                         if (togetherWithAttr is not null)
                         {
                             if (i == 0)
-                                throw GetBuildingException(method, param, "The first parameter cannot be marked with Together With attribute");
+                                throw GetBuildingException(method.Name, param.Name, "The first parameter cannot be marked with Together With attribute");
                             if (p.Body[i - 1].RepetitionCount is SingleAttribute)
-                                e.SetRepetitionCount(method, param, defaultSingleAttribute);
+                                e.SetRepetitionCount(defaultSingleAttribute);
                             else
-                                e.SetRepetitionCount(method, param, togetherWithAttr);
+                                e.SetRepetitionCount(togetherWithAttr);
                         }
                         // set single by default
                         if (e.RepetitionCount is null)
@@ -518,16 +545,18 @@ namespace CompileLib.Parsing
         private class OptionalGroup : IGroup
         {
             private readonly object?[] children;
+            private readonly int divisor;
 
-            public OptionalGroup(object?[] children)
+            public OptionalGroup(object?[] children, int divisor)
             {
                 this.children = children;
+                this.divisor = divisor;
             }
 
             public IEnumerable<object?> Expand()
             {
                 if (children.Length == 0)
-                    return new object?[children.Length];
+                    return new object?[divisor];
                 else
                     return children;
             }
@@ -548,16 +577,37 @@ namespace CompileLib.Parsing
                 set => children[index] = value;
             }
 
-            public bool Check(Type t)
+            private static bool IsAssignable(Type src, Type dest)
             {
-                return children.All(x => x is null || x.GetType().IsAssignableTo(t));
+                if (src == typeof(Common.Token))
+                    return typeof(Parsing.Token).IsAssignableTo(dest) || typeof(string).IsAssignableTo(dest);
+
+                return src.IsAssignableTo(dest);
             }
 
-            public object? Cast(Type t)
+            private static object? Convert(object? o, Type dest, Func<int, string> typeToStr)
+            {
+                if(o is Common.Token tk)
+                {
+                    if (typeof(Parsing.Token).IsAssignableTo(dest))
+                        return new Parsing.Token(typeToStr(tk.Type), tk.Self, tk.Line, tk.Column);
+                    if (typeof(string).IsAssignableTo(dest))
+                        return tk.Self;
+                    Debug.Fail("Check before was wrong");
+                }
+                return o;
+            }
+
+            public bool Check(Type t)
+            {
+                return children.All(x => x is null || IsAssignable(x.GetType(), t));
+            }
+
+            public object? Cast(Type t, Func<int, string> typeToStr)
             {
                 var result = Array.CreateInstance(t, children.Length);
                 for(int i = 0; i < children.Length; i++)
-                    result.SetValue(children[i], i);
+                    result.SetValue(Convert(children[i], t, typeToStr), i);
                 return result;
             }
         }
@@ -590,11 +640,11 @@ namespace CompileLib.Parsing
                 Debug.Assert(leaves.Count % divisor == 0);
                 int itemLength = leaves.Count / divisor;
 
-                var result = new UnknownArray[divisor];
+                var result = new object?[divisor];
                 for(int i = 0; i < divisor; i++)
                     result[i] = new UnknownArray(itemLength);
                 for(int i = 0; i < leaves.Count; i++)
-                    result[i % divisor][i / divisor] = leaves[i];
+                    (result[i % divisor] as UnknownArray)[i / divisor] = leaves[i];
                 return result;
             }
         }
@@ -646,7 +696,7 @@ namespace CompileLib.Parsing
                             throw GetParsingException(method, parameters[ptr], "Expected no value type of array elements");
                         if (!a.Check(ptype))
                             throw GetParsingException(method, parameters[ptr], "Cannot represent one or more elements via the array element type");
-                        args.Add(a.Cast(ptype));
+                        args.Add(a.Cast(ptype, typeToStr));
                     }
                     else
                     {
@@ -687,12 +737,17 @@ namespace CompileLib.Parsing
 
         private class OptionalProductionHandler : IProductionHandler
         {
-            public object? Handle(object?[] children)
+            private readonly int divisor;
+
+            public OptionalProductionHandler(int divisor)
             {
-                return new OptionalGroup(children);
+                this.divisor = divisor;
             }
 
-            public static readonly OptionalProductionHandler Instance = new();
+            public object? Handle(object?[] children)
+            {
+                return new OptionalGroup(children, divisor);
+            }
         }
 
         private class ManyProductionHandler : IProductionHandler
@@ -732,7 +787,6 @@ namespace CompileLib.Parsing
 
         public ParsingEngine Create(string start)
         {
-            // TODO: ошибка не выводится, пофиксить
             // check start
             if (!nonTokenTags.Contains(start))
                 throw startIsInvalidException;
@@ -742,7 +796,7 @@ namespace CompileLib.Parsing
                     if (p.Body[i].TagType is RequireTagsAttribute requireTagAttr)
                         foreach (var tag in requireTagAttr.Tags)
                             if (!tokenTags.Contains(tag) && !nonTokenTags.Contains(tag) && !fictiveNonTokens.Contains(tag))
-                                throw GetBuildingException(p.Handler, p.Handler.GetParameters()[i], $"Tag {tag} is not defined");
+                                throw GetBuildingException(p.Handler.Name, p.Handler.GetParameters()[i].Name, $"Tag {tag} is not defined");
 
             // build lexer
             (int, IMachine)[] tokensForLexer = new (int, IMachine)[keywords.Count + tokens.Count];
@@ -844,7 +898,7 @@ namespace CompileLib.Parsing
             var grammarBuilder = new GrammarBuilder(totalTokensCount, totalNonTokensCount, tagToIndex[start]);
             
             string TokenTypeToStr(int id)
-                => (id < 0 ? TAG_UNDEFINED : tokenName[id]);
+                => (id < 0 ? TAG_UNDEFINED : (id == tokenName.Count ? TAG_EOF : tokenName[id]));
             
             int GetIndexOfTag(object tag)
             {
@@ -862,16 +916,9 @@ namespace CompileLib.Parsing
                 return -1;
             }
 
-            void DebugPrintProduction(int production)
-            {
-                var p = splittedProductions[production];
-                Console.WriteLine($"{p.Tag} -> {string.Join(' ', p.Body.Select(e => e.FullTagName))}\n");
-            }
-
             List<object> addedProductionInfo = new(); // either index i of splittedProductions or AnyToken/AnyTag helper tag
             for(int j = 0; j < splittedProductions.Count; j++)
             {
-                DebugPrintProduction(j);
                 var p = splittedProductions[j];
                 int pStart = GetIndexOfTag(p.Tag);
                 List<int> body = new();
@@ -902,9 +949,6 @@ namespace CompileLib.Parsing
                                 grammarBuilder.AddProduction(
                                     singleID,
                                     new int[] { tagToIndex[tag] },
-                                    p.MainPriority,
-                                    p.ProductionPriority,
-                                    p.ErrorHandlingPriority,
                                     IDFuncHandler.Instance,
                                     null);
                                 addedProductionInfo.Add(htt);
@@ -918,9 +962,6 @@ namespace CompileLib.Parsing
                                 grammarBuilder.AddProduction(
                                     singleID,
                                     new int[] { GetIndexOfTag(tag) },
-                                    p.MainPriority,
-                                    p.ProductionPriority,
-                                    p.ErrorHandlingPriority,
                                     IDFuncHandler.Instance,
                                     null);
                                 addedProductionInfo.Add(htt);
@@ -946,9 +987,9 @@ namespace CompileLib.Parsing
                 if(p.Tag is HelperTag ht)
                 {
                     if (ht.ParentAttribute is OptionalAttribute)
-                        productionHandler = OptionalProductionHandler.Instance;
+                        productionHandler = new OptionalProductionHandler(p.Divisor);
                     else if (ht.ParentAttribute is ManyAttribute)
-                        productionHandler = new ManyProductionHandler(p.Body.Count);
+                        productionHandler = new ManyProductionHandler(p.Divisor);
                     else
                         productionHandler = IDFuncHandler.Instance;
                 }
@@ -962,12 +1003,21 @@ namespace CompileLib.Parsing
                 grammarBuilder.AddProduction(
                     pStart,
                     body.ToArray(),
-                    p.MainPriority,
-                    p.ProductionPriority,
-                    p.ErrorHandlingPriority,
                     productionHandler,
                     p.HasErrorHandler ? errorHandler : null);
                 addedProductionInfo.Add(j);
+            }
+
+            // searching for greedies
+            for(int i = 0; i < addedProductionInfo.Count; i++)
+            {
+                if(addedProductionInfo[i] is int index && splittedProductions[index].Greedy)
+                {
+                    var pStart = splittedProductions[index].Tag;
+                    for (int j = 0; j < addedProductionInfo.Count; j++)
+                        if (addedProductionInfo[j] is int other && splittedProductions[other].Tag.Equals(pStart))
+                            grammarBuilder.AddBanRule(j, i);
+                }
             }
 
             try
@@ -1020,7 +1070,7 @@ namespace CompileLib.Parsing
                     else if(info is int splittedProductionIndex)
                     {
                         var p = splittedProductions[splittedProductionIndex];
-                        output.Append($"{p.Tag} -> {string.Join(' ', p.Body.Select(e => e.FullTagName))}\n");
+                        output.Append($"{p.Tag} -> \n{string.Join('\n', p.Body.Select(e => $"\t[{e.MethodName}(...,{e.ParameterName},...)]{e.FullTagName}"))}\n");
                     }
                 }
 
@@ -1118,6 +1168,10 @@ namespace CompileLib.Parsing
                         opponent.IsCarry);
                 }
 
+                // ???
+                // лучше не использовать
+                // вместо этого передавать в way собственно токенный путь
+                // плюс надо как-то восстанавливать всю иерархию правил
                 IEnumerable<int> ExpandWay(IEnumerable<int> way)
                 {
                     List<int> result = new();
@@ -1143,7 +1197,17 @@ namespace CompileLib.Parsing
                     return result;
                 }
 
-                // TODO: сконвертировать e.Way
+                //Console.WriteLine("Diagnostics: all productions:\n");
+                //
+                //StringBuilder sbb = new();
+                //for(int i = 0; i < addedProductionInfo.Count; i++)
+                //{
+                //    sbb.Clear();
+                //    PrintProduction(i, sbb);
+                //    Console.WriteLine(sbb);
+                //}
+                //Console.WriteLine();
+
                 throw new ParsingConflictException(
                     ExpandWay(e.Way).Select(id => (id < 0 ? showedTokensNames[~id] : showedNonTokensNames[id])).ToArray(),
                     e.TokenType.HasValue ? showedTokensNames[e.TokenType.Value] : null,

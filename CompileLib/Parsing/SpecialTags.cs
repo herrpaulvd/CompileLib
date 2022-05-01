@@ -27,13 +27,18 @@ namespace CompileLib.Parsing
         /// [Only as args in production methods] Tokens tagged with this are keywords
         /// </summary>
         public const string TAG_KEYWORD = "@";
+        /// <summary>
+        /// [Only as argument for Error Handling Decider] End of file
+        /// </summary>
+        public const string TAG_EOF = "$";
 
         private static readonly string[] all =
         {
             TAG_SKIP,
             TAG_UNDEFINED,
             TAG_UNKNOWN,
-            TAG_KEYWORD
+            TAG_KEYWORD,
+            TAG_EOF
         };
         /// <summary>
         /// Determines whether the tag is a special tag
