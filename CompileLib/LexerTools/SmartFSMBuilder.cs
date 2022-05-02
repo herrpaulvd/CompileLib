@@ -8,7 +8,6 @@ using TransList = System.Collections.Generic.List<(System.Predicate<char>, int)>
 
 namespace CompileLib.LexerTools
 {
-    // TODO: optimizations
     internal class SmartFSMBuilder
     {
         private readonly List<TransList> transition = new();
@@ -187,7 +186,34 @@ namespace CompileLib.LexerTools
 
         public SmartFSM Create()
         {
-            return new SmartFSM(transition.Select(e => e.ToArray()).ToArray(), isFinal.ToArray());
+            // check reachability
+            Queue<int> q = new();
+            q.Enqueue(0);
+
+            int n = isFinal.Count;
+            var used = new bool[n];
+            used[0] = true;
+
+            while(q.Count > 0)
+            {
+                int s = q.Dequeue();
+                foreach(var (_, next) in transition[s])
+                    if(!used[next])
+                    {
+                        used[next] = true;
+                        q.Enqueue(next);
+                    }
+            }
+
+            var newIndex = new int[n];
+            int ptr = 0;
+            for(int i = 0; i < n; i++)
+                if(used[i])
+                    newIndex[i] = ptr++;
+
+            return new SmartFSM(
+                transition.Where((_, i) => used[i]).Select(e => e.Select(pi => (pi.Item1, newIndex[pi.Item2])).ToArray()).ToArray(), 
+                isFinal.Where((_, i) => used[i]).ToArray());
         }
     }
 }

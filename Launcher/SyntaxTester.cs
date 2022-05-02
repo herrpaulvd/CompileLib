@@ -241,7 +241,7 @@ namespace Launcher
             )
         {
             Console.WriteLine($"Read operation x{op} where x: {lexpr}");
-            return $"{op}x-expr";
+            return $"x{op}-expr";
         }
 
         [SetTag("r-expr-C")]
