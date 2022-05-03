@@ -1,0 +1,6 @@
+﻿string s;
+read s;
+string t;
+read t;
+write s + t;
+
