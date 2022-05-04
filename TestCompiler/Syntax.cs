@@ -5,11 +5,39 @@ using System.Text;
 using System.Threading.Tasks;
 
 using CompileLib.Parsing;
+using CompileLib.EmbeddedLanguage;
+using CompileLib.Semantic;
 
 namespace TestCompiler
 {
     internal class Syntax
     {
+        public static readonly ELType TChar = ELType.UInt16;
+        public static readonly ELType TString = TChar.MakePointer();
+        public static readonly ELType THandle = ELType.Void.MakePointer();
+        public static readonly ELType TDWORD = ELType.UInt32;
+
+        public class Error : Exception
+        {
+            public Error(string msg) : base(msg) { }
+        }
+
+        public class VariableInfo
+        {
+            public string Name { get; private set; }
+            public ELVariable Self { get; private set; }
+            public bool Initialized { get; private set; }
+
+            public VariableInfo(string name, ELVariable self)
+            {
+                Name = name;
+                Self = self;
+                Initialized = false;
+            }
+
+            public void Initialize() { Initialized = true; }
+        }
+
         public class Program
         {
             private Statement[] statements;
@@ -18,11 +46,32 @@ namespace TestCompiler
             {
                 this.statements = statements;
             }
+
+            public void Compile(Scope scope, ELCompiler compiler)
+            {
+                // TODO: console input function
+                // maybe malloc required
+
+                var main = compiler.CreateFunction(ELType.Void);
+                main.IsEntryPoint = true;
+                main.Enter();
+
+                var conin = compiler.AddVariable(THandle);
+                scope.AddHiddenObject("conin", conin);
+                var conout = compiler.AddVariable(THandle);
+                scope.AddHiddenObject("conout", conout);
+                var fGetStdHandle = compiler.ImportFunction("kernel32.dll", "GetStdHandle", THandle, TDWORD);
+                conin.Value = fGetStdHandle.Call(-10);
+                conout.Value = fGetStdHandle.Call(-11);
+
+                foreach (var statement in statements)
+                    statement.Compile(scope, compiler);
+            }
         }
 
         public abstract class Statement
         {
-
+            public abstract void Compile(Scope scope, ELCompiler compiler);
         }
 
         public class SimpleStatement : Statement
@@ -45,6 +94,24 @@ namespace TestCompiler
 
             public static readonly Statement Empty = new SimpleStatement(null);
             public bool IsEmpty() => expression is null;
+
+            public override void Compile(Scope scope, ELCompiler compiler)
+            {
+                if(variableType is not null)
+                {
+                    if (variableType != "string")
+                        throw new Error("The only type to be allowed is string");
+                    var v = compiler.AddVariable(TString);
+                    var vInfo = new VariableInfo(variableName ?? throw new Error("Internal error"), v);
+                    if (!scope.AddCodeObject(variableName, vInfo))
+                        throw new Error($"A variable with the name {variableName} already exists");
+                    if(expression is not null)
+                    {
+                        var e = expression.Compile(scope, compiler);
+                        v.Value = e;
+                    }
+                }
+            }
         }
 
         public class IOStatement : Statement
@@ -57,11 +124,16 @@ namespace TestCompiler
                 this.operation = operation;
                 this.expression = expression;
             }
+
+            public override void Compile(Scope scope, ELCompiler compiler)
+            {
+                // TODO???
+            }
         }
 
         public abstract class Expression
         {
-
+            public abstract ELExpression Compile(Scope scope, ELCompiler compiler);
         }
 
         public class ExprVariable : Expression
@@ -72,6 +144,11 @@ namespace TestCompiler
             {
                 Name = name;
             }
+
+            public override ELExpression Compile(Scope scope, ELCompiler compiler)
+            {
+                throw new NotImplementedException();
+            }
         }
 
         public class ExprConst : Expression
@@ -81,6 +158,11 @@ namespace TestCompiler
             public ExprConst(string value)
             {
                 Value = value;
+            }
+
+            public override ELExpression Compile(Scope scope, ELCompiler compiler)
+            {
+                throw new NotImplementedException();
             }
         }
 
@@ -95,6 +177,11 @@ namespace TestCompiler
                 Sign = sign;
                 Left = left;
                 Right = right;
+            }
+
+            public override ELExpression Compile(Scope scope, ELCompiler compiler)
+            {
+                throw new NotImplementedException();
             }
         }
 

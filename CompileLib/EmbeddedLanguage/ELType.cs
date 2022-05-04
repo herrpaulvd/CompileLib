@@ -18,7 +18,16 @@ namespace CompileLib.EmbeddedLanguage
         public static readonly ELType UInt32 = new ELAtomType("UInt32");
         public static readonly ELType UInt64 = new ELAtomType("UInt64");
 
+        public static readonly ELType Void = new ELAtomType("Void");
+
         public abstract string Name { get; }
+        public abstract override bool Equals(object? obj);
+        public abstract override int GetHashCode();
+
+        public override string ToString()
+        {
+            return Name;
+        }
 
         public static bool operator==(ELType a, ELType b)
         {
