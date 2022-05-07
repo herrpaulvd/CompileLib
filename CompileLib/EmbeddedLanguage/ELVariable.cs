@@ -9,26 +9,25 @@ namespace CompileLib.EmbeddedLanguage
     public class ELVariable : ELExpression
     {
         private ELType type;
-        private ELCompiler compiler;
 
         public override ELType Type => type;
 
-        internal ELVariable(ELCompiler compiler, ELType type) : base()
+        internal ELVariable(ELCompiler compiler, ELType type) : base(compiler)
         {
-            this.compiler = compiler;
             this.type = type;
         }
 
         public ELExpression Value
         {
-            get
-            {
-                return this;
-            }
             set
             {
-                compiler.CurrentContext?.AddExpression(new ELBinaryOperation(this, value, OperationType.MOV));
+                compiler.CurrentContext?.AddExpression(new ELBinaryOperation(this, value, BinaryOperationType.MOV));
             }
         }
+
+        public void SetConst(long v) => Value = compiler.MakeConst(v);
+        public void SetConst(ulong v) => Value = compiler.MakeConst(v);
+        public void SetConst(int v) => Value = compiler.MakeConst(v);
+        public void SetConst(uint v) => Value = compiler.MakeConst(v);
     }
 }

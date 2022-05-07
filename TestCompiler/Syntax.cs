@@ -12,10 +12,14 @@ namespace TestCompiler
 {
     internal class Syntax
     {
-        public static readonly ELType TChar = ELType.UInt16;
-        public static readonly ELType TString = TChar.MakePointer();
-        public static readonly ELType THandle = ELType.Void.MakePointer();
-        public static readonly ELType TDWORD = ELType.UInt32;
+        private static readonly ELType TChar = ELType.UInt16;
+        private static readonly ELType PChar = TChar.MakePointer();
+        private static readonly ELType SIZE = ELType.UInt64;
+        private static readonly ELStructType TString = new(1, SIZE, PChar);
+        private static readonly ELDataBuilder dataBuilder = new();
+
+        private const int FIELD_LENGTH = 0;
+        private const int FIELD_CHARS = 1;
 
         public class Error : Exception
         {
@@ -26,16 +30,12 @@ namespace TestCompiler
         {
             public string Name { get; private set; }
             public ELVariable Self { get; private set; }
-            public bool Initialized { get; private set; }
 
             public VariableInfo(string name, ELVariable self)
             {
                 Name = name;
                 Self = self;
-                Initialized = false;
             }
-
-            public void Initialize() { Initialized = true; }
         }
 
         public class Program
@@ -47,23 +47,67 @@ namespace TestCompiler
                 this.statements = statements;
             }
 
-            public void Compile(Scope scope, ELCompiler compiler)
+            public void Compile()
             {
-                // TODO: console input function
-                // maybe malloc required
+                var compiler = new ELCompilerBuilder()
+                    .AddMemoryFunctions(out ELFunction malloc, out ELFunction realloc, out ELFunction free, true, true)
+                    .AddMemcpy(out ELFunction memcpy)
+                    .AddConsoleFunctionsW(out ELFunction ConsoleReadW, out ELFunction ConsoleWriteW)
+                    .AddConsoleReadLineW(out ELFunction ConsoleReadLineW)
+                    .Create(out ELFunction main);
 
-                var main = compiler.CreateFunction(ELType.Void);
-                main.IsEntryPoint = true;
+                Scope scope = new();
+
+                dataBuilder.Clear();
+                var nlstr = "\r\n";
+                dataBuilder.AddUnicodeString(nlstr);
+                var nl = compiler.AddInitializedData(PChar, dataBuilder);
+
+                // str-concat function
+                var strconcat = compiler.CreateFunction(TString, TString, TString);
+                scope.AddHiddenObject("strconcat", strconcat);
+                strconcat.Enter();
+                var pa = strconcat.GetParameter(0).Reference;
+                var pb = strconcat.GetParameter(1).Reference;
+                var result = compiler.AddVariable(TString);
+                var pr = result.Reference;
+                var alen = pa.GetFieldReference(FIELD_LENGTH).Dereference;
+                var blen = pa.GetFieldReference(FIELD_LENGTH).Dereference;
+                var length =  alen + blen;
+                pr.GetFieldReference(FIELD_LENGTH).Dereference = length;
+                var s = malloc.Call((length + 1U) * (uint)TChar.Size);
+                memcpy.Call(s, pa.GetFieldReference(FIELD_CHARS).Dereference, alen);
+                memcpy.Call(s + alen, pb.GetFieldReference(FIELD_CHARS), blen);
+                pr.GetFieldReference(FIELD_CHARS).Dereference = s;
+                result.Return();
+
+                // readline function
+                var readline = compiler.CreateFunction(TString);
+                scope.AddHiddenObject("readln", readline);
+                readline.Enter();
+                result = compiler.AddVariable(TString);
+                pr = result.Reference;
+                pr.GetFieldReference(FIELD_CHARS).Dereference = ConsoleReadLineW.Call(pr.GetFieldReference(FIELD_LENGTH));
+                result.Return();
+
+                // write function
+                var write = compiler.CreateFunction(ELType.PVoid, TString);
+                scope.AddHiddenObject("write", write);
+                write.Enter();
+                pa = write.GetParameter(0).Reference;
+                ConsoleWriteW.Call(pa.GetFieldReference(FIELD_CHARS).Dereference, pa.GetFieldReference(FIELD_LENGTH).Dereference);
+
+                // writeln function
+                var writeln = compiler.CreateFunction(ELType.PVoid, TString);
+                scope.AddHiddenObject("writeln", writeln);
+                writeln.Enter();
+                var suffix = compiler.AddVariable(TString);
+                var psuff = suffix.Reference;
+                psuff.GetFieldReference(FIELD_CHARS).Dereference = nl;
+                psuff.GetFieldReference(FIELD_LENGTH).Dereference = compiler.MakeConst((uint)nlstr.Length);
+                write.Call(strconcat.Call(writeln.GetParameter(0), suffix));
+
                 main.Enter();
-
-                var conin = compiler.AddVariable(THandle);
-                scope.AddHiddenObject("conin", conin);
-                var conout = compiler.AddVariable(THandle);
-                scope.AddHiddenObject("conout", conout);
-                var fGetStdHandle = compiler.ImportFunction("kernel32.dll", "GetStdHandle", THandle, TDWORD);
-                conin.Value = fGetStdHandle.Call(-10);
-                conout.Value = fGetStdHandle.Call(-11);
-
                 foreach (var statement in statements)
                     statement.Compile(scope, compiler);
             }
@@ -101,7 +145,7 @@ namespace TestCompiler
                 {
                     if (variableType != "string")
                         throw new Error("The only type to be allowed is string");
-                    var v = compiler.AddVariable(TString);
+                    var v = compiler.AddVariable(PChar);
                     var vInfo = new VariableInfo(variableName ?? throw new Error("Internal error"), v);
                     if (!scope.AddCodeObject(variableName, vInfo))
                         throw new Error($"A variable with the name {variableName} already exists");
@@ -127,7 +171,15 @@ namespace TestCompiler
 
             public override void Compile(Scope scope, ELCompiler compiler)
             {
-                // TODO???
+                if(operation == "write" || operation == "writeln")
+                    scope.GetHiddenObject<ELFunction>(operation)?.Call(expression.Compile(scope, compiler));
+                else
+                {
+                    var vExpr = expression as ExprVariable;
+                    var v = scope.GetObject<VariableInfo>(vExpr.Name);
+                    if (v is null) throw new Error("Undeclared variable");
+                    v.Self.Value = scope.GetHiddenObject<ELFunction>(operation).Call();
+                }
             }
         }
 
@@ -147,7 +199,9 @@ namespace TestCompiler
 
             public override ELExpression Compile(Scope scope, ELCompiler compiler)
             {
-                throw new NotImplementedException();
+                var v = scope.GetObject<VariableInfo>(Name);
+                if (v is null) throw new Error("Undeclared variable");
+                return v.Self;
             }
         }
 
@@ -162,7 +216,14 @@ namespace TestCompiler
 
             public override ELExpression Compile(Scope scope, ELCompiler compiler)
             {
-                throw new NotImplementedException();
+                dataBuilder.Clear();
+                var s = Value[1..^1];
+                var len = s.Length;
+                dataBuilder.AddUnicodeString(s);
+                var result = compiler.AddVariable(TString);
+                result.Reference.GetFieldReference(FIELD_LENGTH).Dereference = compiler.MakeConst((uint)len);
+                result.Reference.GetFieldReference(FIELD_CHARS).Dereference = compiler.AddInitializedData(PChar, dataBuilder);
+                return result;
             }
         }
 
@@ -181,7 +242,22 @@ namespace TestCompiler
 
             public override ELExpression Compile(Scope scope, ELCompiler compiler)
             {
-                throw new NotImplementedException();
+                if(Sign == "=")
+                {
+                    var vExpr = Left as ExprVariable;
+                    var v = scope.GetObject<VariableInfo>(vExpr.Name);
+                    if (v is null) throw new Error("Undeclared variable");
+                    var e = Right.Compile(scope, compiler);
+                    v.Self.Value = e;
+                    return e;
+                }
+                else if(Sign == "+")
+                {
+                    return scope.GetHiddenObject<ELFunction>("strconcat")
+                        .Call(Left.Compile(scope, compiler), Right.Compile(scope, compiler));
+                }
+
+                throw new Error("Internal error");
             }
         }
 
@@ -214,8 +290,8 @@ namespace TestCompiler
         public static Statement ReadInitializationStatement(
             [RequireTags("id")] string type,
             [RequireTags("id")] string name,
-            [Optional(true)][Keywords("=")] string sign,
-            [TogetherWith][RequireTags("expression")] Expression expression,
+            [Keywords("=")] string sign,
+            [RequireTags("expression")] Expression expression,
             [Keywords(";")] string semicolon
             )
         {
@@ -224,7 +300,7 @@ namespace TestCompiler
 
         [SetTag("statement")]
         public static Statement ReadReadStatement(
-            [Keywords("readline")] string operation,
+            [Keywords("readln")] string operation,
             [RequireTags("expression.L")] Expression operand
             )
         {
@@ -233,7 +309,7 @@ namespace TestCompiler
 
         [SetTag("statement")]
         public static Statement ReadWriteStatement(
-            [Keywords("writeline", "write")] string operation,
+            [Keywords("writeln", "write")] string operation,
             [RequireTags("expression")] Expression operand
             )
         {

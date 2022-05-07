@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using CompileLib.Common;
+
 namespace CompileLib.PEGen
 {
     unsafe internal class SectionWriter
@@ -53,14 +55,8 @@ namespace CompileLib.PEGen
             maxpointer = Math.Max(maxpointer, pointer);
         }
 
-        private static int Align(int value, int align)
-        {
-            if (value % align > 0) value += align;
-            return value - value % align;
-        }
-
-        public int FileSize => Align(maxpointer, fileAlign);
-        public int VirtualSize => Align(maxpointer, virtualAlign);
+        public int FileSize => maxpointer.Align(fileAlign);
+        public int VirtualSize => maxpointer.Align(virtualAlign);
 
         public byte[] Build() => buffer.Concat(Enumerable.Repeat((byte)0, FileSize - buffer.Count)).ToArray();
 

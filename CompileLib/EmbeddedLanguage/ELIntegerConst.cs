@@ -6,18 +6,41 @@ using System.Threading.Tasks;
 
 namespace CompileLib.EmbeddedLanguage
 {
-    // maybe temp
-    public class ELIntegerConst : ELExpression
+    internal class ELIntegerConst : ELExpression
     {
         private long value;
         private ELType type;
 
-        internal ELIntegerConst(long value, ELType type)
+        internal ELIntegerConst(ELCompiler compiler, long value)
+            :base(compiler)
         {
             this.value = value;
-            this.type = type;
+            type = ELType.Int64;
+        }
+
+        internal ELIntegerConst(ELCompiler compiler, ulong value)
+            :base(compiler)
+        {
+            this.value = (long)value;
+            type = ELType.UInt64;
+        }
+
+        internal ELIntegerConst(ELCompiler compiler, int value)
+            :base(compiler)
+        {
+            this.value = value;
+            type = ELType.Int32;
+        }
+
+        internal ELIntegerConst(ELCompiler compiler, uint value)
+            :base(compiler)
+        {
+            this.value = value;
+            type = ELType.UInt32;
         }
 
         public override ELType Type => type;
+        public long SignedValue => value;
+        public ulong UnsignedValue => (ulong)value;
     }
 }

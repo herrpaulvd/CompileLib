@@ -20,6 +20,7 @@ namespace CompileLib.EmbeddedLanguage
         public ELType ReturnType => returnType;
         public string? Dll => dll;
         public string? Name => name;
+        internal ELCompiler Compiler => compiler;
 
         internal ELFunction(ELCompiler compiler, ELType returnType, ELType[] parameterTypes)
         {

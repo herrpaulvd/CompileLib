@@ -16,6 +16,7 @@ namespace CompileLib.EmbeddedLanguage
         public override ELType Type => targetType;
 
         public ELCastExpression(ELExpression operand, ELType targetType)
+            : base(operand.compiler)
         {
             this.operand = operand;
             this.targetType = targetType;

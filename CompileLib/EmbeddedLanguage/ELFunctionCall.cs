@@ -12,9 +12,10 @@ namespace CompileLib.EmbeddedLanguage
         private ELExpression[] args;
 
         public ELFunctionCall(ELFunction function, ELExpression[] args)
+            : base(function.Compiler)
         {
             this.function = function;
-            this.args = args;
+            this.args = args.ToArray();
         }
 
         public object Function => function;
