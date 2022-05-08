@@ -9,51 +9,98 @@ namespace CompileLib.EmbeddedLanguage
     public class ELCompiler
     {
         private List<ELFunction> functions = new();
-        private List<ELVariable> globalVariables = new();
+        private List<ELExpression> exprs = new();
+        private List<int> expr2context = new();
+        private List<int> labelAddress = new();
         private List<ELInitializedData> data = new();
 
-        public ELFunction? EntryPoint { get; internal set; }
-        internal ELCodeContext? CurrentContext;
+        private const int globalContext = -1;
+        private const int entryPointContext = 0;
+        private const int funcOffset = 1;
+        private int currentContext = entryPointContext;
 
-        public void EnterGlobal() => CurrentContext = null;
+        public void OpenEntryPoint() => currentContext = entryPointContext;
+        internal void Open(int context) => currentContext = context;
+
+        private ELExpression AddExpression(ELExpression expression, int context)
+        {
+            expression.ID = exprs.Count;
+            exprs.Add(expression);
+            expr2context.Add(context);
+            return expression;
+        }
+
+        internal ELExpression AddExpression(ELExpression expression)
+            => AddExpression(expression, currentContext);
+
+        private ELVariable AddVariable(ELType type, int context)
+            => (ELVariable)AddExpression(new ELVariable(this, type));
+
+        public ELVariable AddGlobalVariable(ELType type) => AddVariable(type, globalContext);
+        public ELVariable AddLocalVariable(ELType type) => AddVariable(type, currentContext);
 
         public ELFunction CreateFunction(ELType returnType, params ELType[] parameterTypes)
         {
-            ELFunction result = new(this, returnType, parameterTypes);
+            int context = functions.Count + funcOffset;
+            var parameters = parameterTypes.Select(t => (ELVariable)AddExpression(new ELVariable(this, t), context)).ToArray();
+            ELFunction result = new(this, context, returnType, parameters);
             functions.Add(result);
             return result;
         }
 
         public ELFunction ImportFunction(string dll, string name, ELType returnType, params ELType[] parameterTypes)
         {
-            ELFunction result = new(this, dll, name, returnType, parameterTypes);
+            int context = functions.Count + funcOffset;
+            var parameters = parameterTypes.Select(t => (ELVariable)AddExpression(new ELVariable(this, t), context)).ToArray();
+            ELFunction result = new(this, context, dll, name, returnType, parameters);
             functions.Add(result);
             return result;
         }
 
-        public ELVariable AddVariable(ELType type)
+        private bool InvalidContext(int context) => context != -1 && context != currentContext;
+
+        public ELLabel DefineLabel()
         {
-            ELVariable result = new(this, type);
-            if (CurrentContext is null)
-                globalVariables.Add(result);
-            else
-                CurrentContext.AddLocal(result);
-            return result;
+            int id = labelAddress.Count;
+            labelAddress.Add(-1);
+            return new ELLabel(currentContext, id);
         }
 
+        public void MarkLabel(ELLabel label)
+        {
+            if (InvalidContext(label.Context))
+                throw new InvalidContextException("Marking label from one context at another");
+            labelAddress[label.ID] = exprs.Count;
+        }
+
+        internal ELExpression? TestContext(ELExpression expression, string name)
+            => expression.compiler != this && InvalidContext(expr2context[expression.ID]) ? throw new ArgumentException("The operand has other context than the expression", name) : null;
+
         public void Return(ELExpression result)
-            => CurrentContext?.AddExpression(new ELReturn(result));
+        {
+            TestContext(result, nameof(result));
+            AddExpression(new ELReturn(result));
+        }
 
-        public ELLabel DefineLabel() => CurrentContext?.DefineLabel() ?? new();
-        public void MarkLabel(ELLabel label) => CurrentContext?.MarkLabel(label);
+        public void Goto(ELLabel label)
+        {
+            if (InvalidContext(label.Context))
+                throw new InvalidContextException("Jump to label from one context to another");
+            AddExpression(new ELGoto(this, null, label));
+        }
 
-        public void Goto(ELLabel label) => CurrentContext?.AddExpression(new ELGoto(this, null, label));
-        public void GotoIf(ELExpression condition, ELLabel label) => CurrentContext?.AddExpression(new ELGoto(this, condition, label));
+        public void GotoIf(ELExpression condition, ELLabel label)
+        {
+            if (InvalidContext(label.Context))
+                throw new InvalidContextException("Jump to label from one context to another");
+            TestContext(condition, nameof(condition));
+            AddExpression(new ELGoto(this, condition, label));
+        }
 
-        public ELExpression MakeConst(long value) => new ELIntegerConst(this, value);
-        public ELExpression MakeConst(ulong value) => new ELIntegerConst(this, value);
-        public ELExpression MakeConst(int value) => new ELIntegerConst(this, value);
-        public ELExpression MakeConst(uint value) => new ELIntegerConst(this, value);
+        public ELExpression MakeConst(long value) => AddExpression(new ELIntegerConst(this, value), globalContext);
+        public ELExpression MakeConst(ulong value) => AddExpression(new ELIntegerConst(this, value), globalContext);
+        public ELExpression MakeConst(int value) => AddExpression(new ELIntegerConst(this, value), globalContext);
+        public ELExpression MakeConst(uint value) => AddExpression(new ELIntegerConst(this, value), globalContext);
 
         private ELExpression? nullptr;
         public ELExpression NULLPTR
@@ -68,9 +115,11 @@ namespace CompileLib.EmbeddedLanguage
         {
             var result = new ELInitializedData(this, dataBuilder.CreateArray(), type);
             data.Add(result);
-            return result;
+            return AddExpression(result, globalContext);
         }
 
         // самое страшное: TODO: Build() method, вероятно сначала с дебаг-выводом
+        // пока на уровне вывода списка выражений
+        // y := f(x_1, x_2, ..., x_n)
     }
 }

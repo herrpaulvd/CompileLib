@@ -54,7 +54,7 @@ namespace TestCompiler
                     .AddMemcpy(out ELFunction memcpy)
                     .AddConsoleFunctionsW(out ELFunction ConsoleReadW, out ELFunction ConsoleWriteW)
                     .AddConsoleReadLineW(out ELFunction ConsoleReadLineW)
-                    .Create(out ELFunction main);
+                    .Create();
 
                 Scope scope = new();
 
@@ -66,10 +66,10 @@ namespace TestCompiler
                 // str-concat function
                 var strconcat = compiler.CreateFunction(TString, TString, TString);
                 scope.AddHiddenObject("strconcat", strconcat);
-                strconcat.Enter();
+                strconcat.Open();
                 var pa = strconcat.GetParameter(0).Reference;
                 var pb = strconcat.GetParameter(1).Reference;
-                var result = compiler.AddVariable(TString);
+                var result = compiler.AddLocalVariable(TString);
                 var pr = result.Reference;
                 var alen = pa.GetFieldReference(FIELD_LENGTH).Dereference;
                 var blen = pa.GetFieldReference(FIELD_LENGTH).Dereference;
@@ -79,35 +79,35 @@ namespace TestCompiler
                 memcpy.Call(s, pa.GetFieldReference(FIELD_CHARS).Dereference, alen);
                 memcpy.Call(s + alen, pb.GetFieldReference(FIELD_CHARS), blen);
                 pr.GetFieldReference(FIELD_CHARS).Dereference = s;
-                result.Return();
+                compiler.Return(result);
 
                 // readline function
                 var readline = compiler.CreateFunction(TString);
                 scope.AddHiddenObject("readln", readline);
-                readline.Enter();
-                result = compiler.AddVariable(TString);
+                readline.Open();
+                result = compiler.AddLocalVariable(TString);
                 pr = result.Reference;
                 pr.GetFieldReference(FIELD_CHARS).Dereference = ConsoleReadLineW.Call(pr.GetFieldReference(FIELD_LENGTH));
-                result.Return();
+                compiler.Return(result);
 
                 // write function
                 var write = compiler.CreateFunction(ELType.PVoid, TString);
                 scope.AddHiddenObject("write", write);
-                write.Enter();
+                write.Open();
                 pa = write.GetParameter(0).Reference;
                 ConsoleWriteW.Call(pa.GetFieldReference(FIELD_CHARS).Dereference, pa.GetFieldReference(FIELD_LENGTH).Dereference);
 
                 // writeln function
                 var writeln = compiler.CreateFunction(ELType.PVoid, TString);
                 scope.AddHiddenObject("writeln", writeln);
-                writeln.Enter();
-                var suffix = compiler.AddVariable(TString);
+                writeln.Open();
+                var suffix = compiler.AddLocalVariable(TString);
                 var psuff = suffix.Reference;
                 psuff.GetFieldReference(FIELD_CHARS).Dereference = nl;
                 psuff.GetFieldReference(FIELD_LENGTH).Dereference = compiler.MakeConst((uint)nlstr.Length);
                 write.Call(strconcat.Call(writeln.GetParameter(0), suffix));
 
-                main.Enter();
+                compiler.OpenEntryPoint();
                 foreach (var statement in statements)
                     statement.Compile(scope, compiler);
             }
@@ -145,7 +145,7 @@ namespace TestCompiler
                 {
                     if (variableType != "string")
                         throw new Error("The only type to be allowed is string");
-                    var v = compiler.AddVariable(PChar);
+                    var v = compiler.AddLocalVariable(PChar);
                     var vInfo = new VariableInfo(variableName ?? throw new Error("Internal error"), v);
                     if (!scope.AddCodeObject(variableName, vInfo))
                         throw new Error($"A variable with the name {variableName} already exists");
@@ -220,7 +220,7 @@ namespace TestCompiler
                 var s = Value[1..^1];
                 var len = s.Length;
                 dataBuilder.AddUnicodeString(s);
-                var result = compiler.AddVariable(TString);
+                var result = compiler.AddLocalVariable(TString);
                 result.Reference.GetFieldReference(FIELD_LENGTH).Dereference = compiler.MakeConst((uint)len);
                 result.Reference.GetFieldReference(FIELD_CHARS).Dereference = compiler.AddInitializedData(PChar, dataBuilder);
                 return result;

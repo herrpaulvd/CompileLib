@@ -9,12 +9,6 @@ namespace CompileLib.EmbeddedLanguage
     public class ELCompilerBuilder
     {
         private ELCompiler compiler = new();
-        private ELFunction mainFunction;
-
-        public ELCompilerBuilder()
-        {
-            mainFunction = compiler.CreateFunction(ELType.Void);
-        }
 
         // some types
         private static readonly ELType LPVOID = ELType.PVoid;
@@ -43,33 +37,30 @@ namespace CompileLib.EmbeddedLanguage
                 return this;
             }
 
-            compiler.EnterGlobal();
-            hHeap = compiler.AddVariable(HANDLE);
+            compiler.OpenEntryPoint();
+            hHeap = compiler.AddGlobalVariable(HANDLE);
             GetProcessHeap = compiler.ImportFunction("kernel32.dll", "GetProcessHeap", HANDLE);
             HeapAlloc = compiler.ImportFunction("kernel32.dll", "HeapAlloc", LPVOID, HANDLE, DWORD, SIZE);
             HeapReAlloc = compiler.ImportFunction("kernel32.dll", "HeapReAlloc", LPVOID, HANDLE, DWORD, LPVOID, SIZE);
             HeapFree = compiler.ImportFunction("kernel32.dll", "HeapFree", BOOL, HANDLE, DWORD, LPVOID);
-
-            mainFunction.Enter();
             hHeap.Value = GetProcessHeap.Call();
 
             this.malloc = malloc = compiler.CreateFunction(LPVOID, SIZE);
             var pSize = malloc.GetParameter(0);
-            malloc.Enter();
+            malloc.Open();
             compiler.Return(HeapAlloc.Call(hHeap, (compiler.MakeConst(mallocAuto0Fill ? 0x08U : 0U)), pSize));
 
             this.realloc = realloc = compiler.CreateFunction(LPVOID, LPVOID, SIZE);
             var pOld = realloc.GetParameter(0);
             pSize = realloc.GetParameter(1);
-            realloc.Enter();
+            realloc.Open();
             compiler.Return(HeapReAlloc.Call(hHeap, (compiler.MakeConst(reallocAuto0Fill ? 0x08U : 0U)), pOld, pSize));
 
             this.free = free = compiler.CreateFunction(ELType.Void, SIZE);
             pOld = free.GetParameter(0);
-            free.Enter();
+            free.Open();
             HeapFree.Call(hHeap, compiler.MakeConst(0U), pOld);
 
-            compiler.EnterGlobal();
             return this;
         }
 
@@ -127,9 +118,9 @@ namespace CompileLib.EmbeddedLanguage
                 return this;
             }
 
-            compiler.EnterGlobal();
-            conin = compiler.AddVariable(HANDLE);
-            conout = compiler.AddVariable(HANDLE);
+            compiler.OpenEntryPoint();
+            conin = compiler.AddGlobalVariable(HANDLE);
+            conout = compiler.AddGlobalVariable(HANDLE);
 
             GetStdHandle = compiler.ImportFunction("kernel32.dll", "GetStdHandle", HANDLE, DWORD);
             SetConsoleCP = compiler.ImportFunction("kernel32.dll", "SetConsoleCP", BOOL, DWORD);
@@ -137,28 +128,26 @@ namespace CompileLib.EmbeddedLanguage
             ReadConsoleW = compiler.ImportFunction("kernel32.dll", "ReadConsoleW", BOOL, HANDLE, PWCHAR, DWORD, LPVOID, LPVOID);
             WriteConsoleW = compiler.ImportFunction("kernel32.dll", "WriteConsoleW", BOOL, HANDLE, PWCHAR, DWORD, LPVOID, LPVOID);
 
-            mainFunction.Enter();
             conin.Value = GetStdHandle.Call(compiler.MakeConst(STD_INPUT_HANDLE));
             conout.Value = GetStdHandle.Call(compiler.MakeConst(STD_OUTPUT_HANDLE));
             SetConsoleCP.Call(compiler.MakeConst(CP_UTF8));
             SetConsoleOutputCP.Call(compiler.MakeConst(CP_UTF8));
 
             this.ConsoleReadW = ConsoleReadW = compiler.CreateFunction(SIZE, PWCHAR, SIZE);
-            ConsoleReadW.Enter();
+            ConsoleReadW.Open();
             var buffer = ConsoleReadW.GetParameter(0);
             var count = ConsoleReadW.GetParameter(1);
-            var nCharsWritten = compiler.AddVariable(SIZE);
+            var nCharsWritten = compiler.AddLocalVariable(SIZE);
             nCharsWritten.SetConst(0U);
             ReadConsoleW.Call(conin, buffer, count.Cast(DWORD), nCharsWritten.Reference, compiler.NULLPTR);
             compiler.Return(nCharsWritten);
             
             this.ConsoleWriteW = ConsoleWriteW = compiler.CreateFunction(ELType.Void, PWCHAR, SIZE);
-            ConsoleWriteW.Enter();
+            ConsoleWriteW.Open();
             buffer = ConsoleWriteW.GetParameter(0);
             count = ConsoleWriteW.GetParameter(1);
             ConsoleWriteW.Call(conout, buffer, count.Cast(DWORD), compiler.NULLPTR, compiler.NULLPTR);
 
-            compiler.EnterGlobal();
             return this;
         }
 
@@ -185,14 +174,14 @@ namespace CompileLib.EmbeddedLanguage
                 throw new Exception($"Before the call, {nameof(AddConsoleFunctionsW)} call is required");
 
             this.ConsoleReadLineW = ConsoleReadLineW = compiler.CreateFunction(PWCHAR, SIZE.MakePointer());
-            ConsoleReadLineW.Enter();
+            ConsoleReadLineW.Open();
             var pTotalCount = ConsoleReadLineW.GetParameter(0);
 
-            var capacity = compiler.AddVariable(SIZE);
+            var capacity = compiler.AddLocalVariable(SIZE);
             capacity.Value = compiler.MakeConst(16U);
-            var bytes = compiler.AddVariable(SIZE);
+            var bytes = compiler.AddLocalVariable(SIZE);
             bytes.Value = capacity * (uint)WCHAR.Size;
-            var result = compiler.AddVariable(PWCHAR);
+            var result = compiler.AddLocalVariable(PWCHAR);
             result.Value = malloc.Call(bytes).Cast(PWCHAR);
             pTotalCount.Dereference = ConsoleReadW.Call(result, capacity);
 
@@ -219,15 +208,12 @@ namespace CompileLib.EmbeddedLanguage
             result[pTotalCount] = nullchar;
             compiler.MarkLabel(next);
 
-            result.Return();
-            compiler.EnterGlobal();
+            compiler.Return(result);
             return this;
         }
 
-        public ELCompiler Create(out ELFunction main)
+        public ELCompiler Create()
         {
-            mainFunction.IsEntryPoint = true;
-            main = mainFunction;
             return compiler;
         }
     }

@@ -65,7 +65,6 @@ namespace CompileLib.EmbeddedLanguage
             Operation = operation;
         }
 
-        // TEMP
         public override ELType Type => type;
     }
 }

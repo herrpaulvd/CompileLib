@@ -18,6 +18,8 @@ namespace CompileLib.EmbeddedLanguage
         public ELGoto(ELCompiler compiler, ELExpression? condition, ELLabel target)
             :base(compiler)
         {
+            if (condition is not null && condition.Type is not ELAtomType && condition.Type is not ELPointerType)
+                throw new ArgumentException("Goto condition must have either atom or pointer type", nameof(condition));
             this.condition = condition;
             this.target = target;
         }

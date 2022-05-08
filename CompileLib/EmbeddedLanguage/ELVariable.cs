@@ -14,6 +14,8 @@ namespace CompileLib.EmbeddedLanguage
 
         internal ELVariable(ELCompiler compiler, ELType type) : base(compiler)
         {
+            if(type == ELType.Void)
+                throw new ArgumentException("Cannot declare variable with the type Void", nameof(type));
             this.type = type;
         }
 
@@ -21,7 +23,9 @@ namespace CompileLib.EmbeddedLanguage
         {
             set
             {
-                compiler.CurrentContext?.AddExpression(new ELBinaryOperation(this, value, BinaryOperationType.MOV));
+                compiler.TestContext(this, "left");
+                compiler.TestContext(this, "right");
+                compiler.AddExpression(new ELBinaryOperation(this, value, BinaryOperationType.MOV));
             }
         }
 

@@ -15,7 +15,7 @@ namespace CompileLib.EmbeddedLanguage
             : base(function.Compiler)
         {
             this.function = function;
-            this.args = args.ToArray();
+            this.args = args;
         }
 
         public object Function => function;
