@@ -67,18 +67,17 @@ namespace TestCompiler
                 var strconcat = compiler.CreateFunction(TString, TString, TString);
                 scope.AddHiddenObject("strconcat", strconcat);
                 strconcat.Open();
-                var pa = strconcat.GetParameter(0).Reference;
-                var pb = strconcat.GetParameter(1).Reference;
+                var a = strconcat.GetParameter(0);
+                var b = strconcat.GetParameter(1);
                 var result = compiler.AddLocalVariable(TString);
-                var pr = result.Reference;
-                var alen = pa.GetFieldReference(FIELD_LENGTH).Dereference;
-                var blen = pa.GetFieldReference(FIELD_LENGTH).Dereference;
+                var alen = a.FieldRef(FIELD_LENGTH);
+                var blen = b.FieldRef(FIELD_LENGTH);
                 var length =  alen + blen;
-                pr.GetFieldReference(FIELD_LENGTH).Dereference = length;
+                result.FieldRef(FIELD_LENGTH).Value = length;
                 var s = malloc.Call((length + 1U) * (uint)TChar.Size);
-                memcpy.Call(s, pa.GetFieldReference(FIELD_CHARS).Dereference, alen);
-                memcpy.Call(s + alen, pb.GetFieldReference(FIELD_CHARS), blen);
-                pr.GetFieldReference(FIELD_CHARS).Dereference = s;
+                memcpy.Call(s, a.FieldRef(FIELD_CHARS), alen);
+                memcpy.Call(s + alen, b.FieldRef(FIELD_CHARS), blen);
+                result.FieldRef(FIELD_CHARS).Value = s;
                 compiler.Return(result);
 
                 // readline function
@@ -86,25 +85,23 @@ namespace TestCompiler
                 scope.AddHiddenObject("readln", readline);
                 readline.Open();
                 result = compiler.AddLocalVariable(TString);
-                pr = result.Reference;
-                pr.GetFieldReference(FIELD_CHARS).Dereference = ConsoleReadLineW.Call(pr.GetFieldReference(FIELD_LENGTH));
+                result.FieldRef(FIELD_CHARS).Value = ConsoleReadLineW.Call(result.FieldRef(FIELD_LENGTH));
                 compiler.Return(result);
 
                 // write function
                 var write = compiler.CreateFunction(ELType.PVoid, TString);
                 scope.AddHiddenObject("write", write);
                 write.Open();
-                pa = write.GetParameter(0).Reference;
-                ConsoleWriteW.Call(pa.GetFieldReference(FIELD_CHARS).Dereference, pa.GetFieldReference(FIELD_LENGTH).Dereference);
+                a = write.GetParameter(0);
+                ConsoleWriteW.Call(a.FieldRef(FIELD_CHARS), a.FieldRef(FIELD_LENGTH));
 
                 // writeln function
                 var writeln = compiler.CreateFunction(ELType.PVoid, TString);
                 scope.AddHiddenObject("writeln", writeln);
                 writeln.Open();
                 var suffix = compiler.AddLocalVariable(TString);
-                var psuff = suffix.Reference;
-                psuff.GetFieldReference(FIELD_CHARS).Dereference = nl;
-                psuff.GetFieldReference(FIELD_LENGTH).Dereference = compiler.MakeConst((uint)nlstr.Length);
+                suffix.FieldRef(FIELD_CHARS).Value = nl;
+                suffix.FieldRef(FIELD_LENGTH).Value = compiler.MakeConst((uint)nlstr.Length);
                 write.Call(strconcat.Call(writeln.GetParameter(0), suffix));
 
                 compiler.OpenEntryPoint();
@@ -221,8 +218,8 @@ namespace TestCompiler
                 var len = s.Length;
                 dataBuilder.AddUnicodeString(s);
                 var result = compiler.AddLocalVariable(TString);
-                result.Reference.GetFieldReference(FIELD_LENGTH).Dereference = compiler.MakeConst((uint)len);
-                result.Reference.GetFieldReference(FIELD_CHARS).Dereference = compiler.AddInitializedData(PChar, dataBuilder);
+                result.FieldRef(FIELD_LENGTH).Value = compiler.MakeConst((uint)len);
+                result.FieldRef(FIELD_CHARS).Value = compiler.AddInitializedData(PChar, dataBuilder);
                 return result;
             }
         }

@@ -118,8 +118,9 @@ namespace CompileLib.EmbeddedLanguage
             return AddExpression(result, globalContext);
         }
 
-        // самое страшное: TODO: Build() method, вероятно сначала с дебаг-выводом
-        // пока на уровне вывода списка выражений
-        // y := f(x_1, x_2, ..., x_n)
+        public void BuildAndSave(string filename)
+        {
+            // TODO
+        }
     }
 }

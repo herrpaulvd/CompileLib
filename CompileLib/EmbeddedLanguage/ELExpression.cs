@@ -20,19 +20,8 @@ namespace CompileLib.EmbeddedLanguage
         public ELExpression Cast(ELType targetType)
             => compiler.TestContext(this, "operand") ?? compiler.AddExpression(new ELCastExpression(this, targetType));
 
-        public ELExpression Dereference
-        {
-            get => compiler.TestContext(this, "operand") ?? compiler.AddExpression(new ELPointerDereference(this));
-            set
-            {
-                compiler.TestContext(this, "pointer");
-                compiler.TestContext(value, "right");
-                compiler.AddExpression(new ELBinaryOperation(
-                    compiler.AddExpression(new ELPointerDereference(this)), 
-                    value, 
-                    BinaryOperationType.MOV));
-            }
-        }
+        public ELReference PtrToRef()
+            => (ELReference?)compiler.TestContext(this, "operand") ?? (ELReference)compiler.AddExpression(new ELReference(this));
 
         private static ELExpression CreateBinary(BinaryOperationType t, ELExpression left, ELExpression right)
             => left.compiler.TestContext(left, nameof(left)) 
@@ -169,44 +158,13 @@ namespace CompileLib.EmbeddedLanguage
         public static ELExpression operator !=(uint left, ELExpression right)
             => right.compiler.MakeConst(left) != right;
 
-        public ELExpression this[ELExpression index]
-        {
-            get => (this + index).Dereference;
-            set => (this + index).Dereference = value;
-        }
-        public ELExpression this[long index]
-        {
-            get => (this + index).Dereference;
-            set => (this + index).Dereference = value;
-        }
-        public ELExpression this[ulong index]
-        {
-            get => (this + index).Dereference;
-            set => (this + index).Dereference = value;
-        }
-        public ELExpression this[int index]
-        {
-            get => (this + index).Dereference;
-            set => (this + index).Dereference = value;
-        }
-        public ELExpression this[uint index]
-        {
-            get => (this + index).Dereference;
-            set => (this + index).Dereference = value;
-        }
+        public ELReference this[ELExpression index] => (this + index).PtrToRef();
+        public ELReference this[long index] => (this + index).PtrToRef();
+        public ELReference this[ulong index] => (this + index).PtrToRef();
+        public ELReference this[int index] => (this + index).PtrToRef();
+        public ELReference this[uint index] => (this + index).PtrToRef();
 
-        public ELExpression Reference => compiler.TestContext(this, "operand") ?? compiler.AddExpression(new ELReferenceExpression(this));
-
-        public ELExpression GetFieldReference(int fieldIndex)
-        {
-            if(Type is ELPointerType pt && pt.BaseType is ELStructType st)
-            {
-                if (fieldIndex < 0 || fieldIndex >= st.FieldCount)
-                    throw new ArgumentException("Invalid field index", nameof(fieldIndex));
-
-                return compiler.TestContext(this, "operand") ?? compiler.AddExpression(new ELGetFieldReferenceExpression(fieldIndex, this));
-            }
-            throw new ArgumentException("The operand must be pointer to struct", "operand");
-        }
+        public ELFieldReference FieldRef(int fieldIndex)
+            => (ELFieldReference?)compiler.TestContext(this, "operand") ?? (ELFieldReference)compiler.AddExpression(new ELFieldReference(fieldIndex, this));
     }
 }

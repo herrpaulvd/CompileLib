@@ -139,7 +139,7 @@ namespace CompileLib.EmbeddedLanguage
             var count = ConsoleReadW.GetParameter(1);
             var nCharsWritten = compiler.AddLocalVariable(SIZE);
             nCharsWritten.SetConst(0U);
-            ReadConsoleW.Call(conin, buffer, count.Cast(DWORD), nCharsWritten.Reference, compiler.NULLPTR);
+            ReadConsoleW.Call(conin, buffer, count.Cast(DWORD), nCharsWritten.Address, compiler.NULLPTR);
             compiler.Return(nCharsWritten);
             
             this.ConsoleWriteW = ConsoleWriteW = compiler.CreateFunction(ELType.Void, PWCHAR, SIZE);
@@ -176,6 +176,7 @@ namespace CompileLib.EmbeddedLanguage
             this.ConsoleReadLineW = ConsoleReadLineW = compiler.CreateFunction(PWCHAR, SIZE.MakePointer());
             ConsoleReadLineW.Open();
             var pTotalCount = ConsoleReadLineW.GetParameter(0);
+            var totalCount = pTotalCount.PtrToRef();
 
             var capacity = compiler.AddLocalVariable(SIZE);
             capacity.Value = compiler.MakeConst(16U);
@@ -183,29 +184,29 @@ namespace CompileLib.EmbeddedLanguage
             bytes.Value = capacity * (uint)WCHAR.Size;
             var result = compiler.AddLocalVariable(PWCHAR);
             result.Value = malloc.Call(bytes).Cast(PWCHAR);
-            pTotalCount.Dereference = ConsoleReadW.Call(result, capacity);
+            totalCount.Value = ConsoleReadW.Call(result, capacity);
 
             var repeatStart = compiler.DefineLabel();
             var repeatEnd = compiler.DefineLabel();
 
             compiler.MarkLabel(repeatStart);
-            compiler.GotoIf(capacity != pTotalCount.Dereference, repeatEnd);
+            compiler.GotoIf(capacity != totalCount, repeatEnd);
             compiler.GotoIf(result[capacity - 1U] == (uint)'\n', repeatEnd);
             bytes.Value = bytes * 2U;
             result.Value = realloc.Call(result, bytes).Cast(PWCHAR);
-            pTotalCount.Dereference += ConsoleReadW.Call(result + capacity, capacity);
+            totalCount.Value += ConsoleReadW.Call(result + capacity, capacity);
             capacity.Value = capacity * 2U;
             compiler.Goto(repeatStart);
             compiler.MarkLabel(repeatEnd);
 
             var nullchar = compiler.MakeConst(0U).Cast(WCHAR);
-            pTotalCount.Dereference -= 1U;
-            result[pTotalCount] = nullchar;
+            totalCount.Value -= 1U;
+            result[pTotalCount].Value = nullchar;
             var next = compiler.DefineLabel();
-            compiler.GotoIf(!pTotalCount.Dereference, next);
-            compiler.GotoIf(result[pTotalCount.Dereference - 1U] != (uint)'\r', next);
-            pTotalCount.Dereference -= 1U;
-            result[pTotalCount] = nullchar;
+            compiler.GotoIf(!totalCount, next);
+            compiler.GotoIf(result[totalCount - 1U] != (uint)'\r', next);
+            totalCount.Value -= 1U;
+            result[pTotalCount].Value = nullchar;
             compiler.MarkLabel(next);
 
             compiler.Return(result);

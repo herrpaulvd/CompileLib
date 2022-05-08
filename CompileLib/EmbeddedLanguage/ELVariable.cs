@@ -19,12 +19,15 @@ namespace CompileLib.EmbeddedLanguage
             this.type = type;
         }
 
+        public ELExpression Address => compiler.TestContext(this, "variable") ?? compiler.AddExpression(new ELReferenceExpression(this));
+
         public ELExpression Value
         {
+            get => compiler.TestContext(this, "variable") ?? compiler.AddExpression(new ELCopy(this));
             set
             {
                 compiler.TestContext(this, "left");
-                compiler.TestContext(this, "right");
+                compiler.TestContext(value, "right");
                 compiler.AddExpression(new ELBinaryOperation(this, value, BinaryOperationType.MOV));
             }
         }
