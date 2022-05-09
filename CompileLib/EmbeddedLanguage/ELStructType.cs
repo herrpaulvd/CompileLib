@@ -16,6 +16,7 @@ namespace CompileLib.EmbeddedLanguage
 
         public int FieldCount => fields.Length;
         public ELType GetFieldType(int index) => fields[index];
+        public int GetFieldOffset(int index) => fields.Take(index).Select(t => t.Size).Sum();
 
         public override bool Equals(object? obj)
             => ReferenceEquals(obj, this);

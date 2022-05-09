@@ -53,7 +53,7 @@ namespace CompileLib.EmbeddedLanguage
                 if (!args[i].Type.IsAssignableTo(parameters[i].Type))
                     throw new ArgumentException($"Argument #{i}: cannot assign {args[i].Type} to {parameters[i].Type}");
 
-            return compiler.AddExpression(new ELFunctionCall(this, args.ToArray()));
+            return compiler.AddExpression(new ELFunctionCall(this, args.Select(a => compiler.TestContext(a, "arg") ?? a).ToArray()));
         }
     }
 }

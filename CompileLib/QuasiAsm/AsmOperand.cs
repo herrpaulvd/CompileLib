@@ -13,11 +13,12 @@ namespace CompileLib.QuasiAsm
         LocalVar = Param + 1,
         Const = LocalVar + 1,
         Nothing = Const,
+        InitData = Const + 1,
     }
 
     internal enum AsmOperandUse
     {
-        Ref = AsmOperandType.Const + 1, // &v
+        Ref = AsmOperandType.InitData + 1, // &v
         Val = Ref + 1, // v
         Deref = Val + 1 // *v
     }
@@ -32,13 +33,14 @@ namespace CompileLib.QuasiAsm
             LocalVar = 1 << AsmOperandType.LocalVar,
             Const = 1 << AsmOperandType.Const,
             Nothing = Const,
+            InitData = 1 << AsmOperandType.InitData,
             Ref = 1 << AsmOperandUse.Ref,
             Val = 1 << AsmOperandUse.Val,
             Deref = 1 << AsmOperandUse.Deref,
             Struc = Deref << 1,
             Signed = Struc << 1,
             FullExceptType = Ref | Val | Deref | Struc | Signed,
-            FullExceptUse = GlobalVar | Param | LocalVar | Const | Struc | Signed,
+            FullExceptUse = GlobalVar | Param | LocalVar | Const | InitData | Struc | Signed,
         }
 
         private Flags flags;
@@ -70,6 +72,7 @@ namespace CompileLib.QuasiAsm
                 AsmOperandType.Param => Flags.Param,
                 AsmOperandType.LocalVar => Flags.LocalVar,
                 AsmOperandType.Const => Flags.Const,
+                AsmOperandType.InitData => Flags.InitData,
                 _ => throw new NotImplementedException(),
             };
             flags |= operandUse switch
@@ -88,11 +91,13 @@ namespace CompileLib.QuasiAsm
         public bool IsLocalVar() => (flags & Flags.LocalVar) != 0;
         public bool IsConst() => (flags & Flags.Const) != 0;
         public bool IsNothing() => (flags & Flags.Nothing) != 0;
+        public bool IsInitData() => (flags & Flags.InitData) != 0;
         public bool IsRef() => (flags & Flags.Ref) != 0;
         public bool IsVal() => (flags & Flags.Val) != 0;
         public bool IsDeref() => (flags & Flags.Deref) != 0;
         public bool IsStruc() => (flags & Flags.Struc) != 0;
         public bool IsSigned() => (flags & Flags.Signed) != 0;
+        public bool IsUndefined() => flags == 0;
 
         public AsmOperand WithType(AsmOperandType t) => new(flags & (Flags.FullExceptType | (Flags)(1 << (int)t)), ID, Size);
         public AsmOperand WithUse(AsmOperandUse u) => new(flags & (Flags.FullExceptUse | (Flags)(1 << (int)u)), ID, Size);

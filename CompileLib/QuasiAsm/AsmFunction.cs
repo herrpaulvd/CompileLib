@@ -24,18 +24,9 @@ namespace CompileLib.QuasiAsm
         {
             int id = parameters.Count;
             AsmOperand result = new(AsmOperandType.Param, AsmOperandUse.Val, struc, signed, id, size);
-            locals.Add(result);
+            parameters.Add(result);
             return result;
         }
-
-        private void AddOperation(IAsmOperationType type, AsmOperand destination, object source)
-            => operations.Add(new AsmOperation(destination, source, type));
-        public void AddOperation(IAsmOperationType type, AsmOperand destination, AsmOperand source)
-            => AddOperation(type, destination, source);
-        public void AddOperation(IAsmOperationType type, AsmOperand destination, AsmOperand left, AsmOperand right)
-            => AddOperation(type, destination, Tuple.Create(left, right));
-        public void AddOperation(IAsmOperationType type, AsmOperand destination, AsmOperand[] source)
-            => AddOperation(type, destination, source);
 
         public AsmOperand AddLocal(bool struc, bool signed, int size)
         {
@@ -44,5 +35,18 @@ namespace CompileLib.QuasiAsm
             locals.Add(result);
             return result;
         }
+
+        public int GetIP() => operations.Count;
+        
+        private void AddOperation(IAsmOperationType type, AsmOperand destination, object? source)
+            => operations.Add(new AsmOperation(destination, source, type));
+        public void AddOperation(IAsmOperationType type, AsmOperand destination)
+            => AddOperation(type, destination, (object?)null);
+        public void AddOperation(IAsmOperationType type, AsmOperand destination, AsmOperand source)
+            => AddOperation(type, destination, source);
+        public void AddOperation(IAsmOperationType type, AsmOperand destination, AsmOperand left, AsmOperand right)
+            => AddOperation(type, destination, Tuple.Create(left, right));
+        public void AddOperation(IAsmOperationType type, AsmOperand destination, AsmOperand[] source)
+            => AddOperation(type, destination, source);
     }
 }

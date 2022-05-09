@@ -8,6 +8,7 @@ namespace CompileLib.QuasiAsm
 {
     internal enum AsmSenderRequired
     {
+        None,
         Single,
         Pair,
         Array

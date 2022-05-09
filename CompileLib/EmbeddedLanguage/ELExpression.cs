@@ -163,8 +163,5 @@ namespace CompileLib.EmbeddedLanguage
         public ELReference this[ulong index] => (this + index).PtrToRef();
         public ELReference this[int index] => (this + index).PtrToRef();
         public ELReference this[uint index] => (this + index).PtrToRef();
-
-        public ELFieldReference FieldRef(int fieldIndex)
-            => (ELFieldReference?)compiler.TestContext(this, "operand") ?? (ELFieldReference)compiler.AddExpression(new ELFieldReference(fieldIndex, this));
     }
 }

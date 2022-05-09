@@ -138,7 +138,7 @@ namespace CompileLib.EmbeddedLanguage
             var buffer = ConsoleReadW.GetParameter(0);
             var count = ConsoleReadW.GetParameter(1);
             var nCharsWritten = compiler.AddLocalVariable(SIZE);
-            nCharsWritten.SetConst(0U);
+            nCharsWritten.Value = compiler.MakeConst(0U);
             ReadConsoleW.Call(conin, buffer, count.Cast(DWORD), nCharsWritten.Address, compiler.NULLPTR);
             compiler.Return(nCharsWritten);
             

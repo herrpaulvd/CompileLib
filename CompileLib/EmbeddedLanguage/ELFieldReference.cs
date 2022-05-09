@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace CompileLib.EmbeddedLanguage
 {
-    public class ELFieldReference : ELExpression
+    public class ELFieldReference : ELMemoryCell
     {
         private int fieldIndex;
-        private ELExpression operand;
+        private ELMemoryCell operand;
 
-        internal ELFieldReference(int fieldIndex, ELExpression operand)
+        internal ELFieldReference(int fieldIndex, ELMemoryCell operand)
             : base(operand.compiler)
         {
             if(operand.Type is ELStructType st)
@@ -24,21 +24,9 @@ namespace CompileLib.EmbeddedLanguage
             this.operand = operand;
         }
 
-        public ELExpression Address => compiler.TestContext(this, "fieldref") ?? compiler.AddExpression(new ELReferenceExpression(this));
-
-        public ELExpression Value
-        {
-            get => compiler.TestContext(this, "fieldref") ?? compiler.AddExpression(new ELCopy(this));
-            set
-            {
-                compiler.TestContext(this, "left");
-                compiler.TestContext(value, "right");
-                compiler.AddExpression(new ELBinaryOperation(this, value, BinaryOperationType.MOV));
-            }
-        }
-
         public override ELType Type => (operand.Type as ELStructType)?.GetFieldType(fieldIndex) ?? throw new Exception("Internal error");
         internal int FieldIndex => fieldIndex;
-        internal ELExpression Operand => operand;
+        internal ELMemoryCell Operand => operand;
+        internal int FieldOffset => (operand.Type as ELStructType)?.GetFieldOffset(fieldIndex) ?? throw new Exception("Internal error");
     }
 }

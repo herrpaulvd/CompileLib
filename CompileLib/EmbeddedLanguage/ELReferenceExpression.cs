@@ -9,12 +9,12 @@ namespace CompileLib.EmbeddedLanguage
     internal class ELReferenceExpression : ELExpression
     {
         private ELType type;
-        private ELExpression expression;
-        public ELExpression Expression => expression;
+        private ELMemoryCell expression;
+        public ELMemoryCell Expression => expression;
 
         public override ELType Type => type;
 
-        public ELReferenceExpression(ELExpression expression)
+        public ELReferenceExpression(ELMemoryCell expression)
             : base(expression.compiler)
         {
             this.expression = expression;

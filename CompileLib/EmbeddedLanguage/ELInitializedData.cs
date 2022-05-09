@@ -15,8 +15,10 @@ namespace CompileLib.EmbeddedLanguage
             : base(compiler)
         {
             this.values = values;
+            this.type = type;
         }
 
         public override ELType Type => type;
+        public byte[] Values => values;
     }
 }

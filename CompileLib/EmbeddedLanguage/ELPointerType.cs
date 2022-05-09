@@ -16,7 +16,7 @@ namespace CompileLib.EmbeddedLanguage
             this.baseType = baseType;
         }
 
-        public override int Size => UInt64.Size;
+        public override int Size => QuasiAsm.Assembler.PtrSize;
 
         public override bool Equals(object? obj)
         {

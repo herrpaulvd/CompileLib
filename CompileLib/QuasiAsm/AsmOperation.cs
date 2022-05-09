@@ -9,10 +9,10 @@ namespace CompileLib.QuasiAsm
     internal struct AsmOperation
     {
         public AsmOperand Destination;
-        public object Source;
+        public object? Source;
         public IAsmOperationType OperationType;
 
-        public AsmOperation(AsmOperand destination, object source, IAsmOperationType operationType)
+        public AsmOperation(AsmOperand destination, object? source, IAsmOperationType operationType)
         {
             Destination = destination;
             Source = source;

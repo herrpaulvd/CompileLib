@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using CompileLib.QuasiAsm;
+
 namespace CompileLib.EmbeddedLanguage
 {
     public class ELCompiler
@@ -57,7 +59,7 @@ namespace CompileLib.EmbeddedLanguage
             return result;
         }
 
-        private bool InvalidContext(int context) => context != -1 && context != currentContext;
+        private bool InvalidContext(int context) => context != globalContext && context != currentContext;
 
         public ELLabel DefineLabel()
         {
@@ -74,7 +76,7 @@ namespace CompileLib.EmbeddedLanguage
         }
 
         internal ELExpression? TestContext(ELExpression expression, string name)
-            => expression.compiler != this && InvalidContext(expr2context[expression.ID]) ? throw new ArgumentException("The operand has other context than the expression", name) : null;
+            => expression.compiler != this || InvalidContext(expr2context[expression.ID]) ? throw new ArgumentException("The operand has other context than the expression", name) : null;
 
         public void Return(ELExpression result)
         {
@@ -120,7 +122,117 @@ namespace CompileLib.EmbeddedLanguage
 
         public void BuildAndSave(string filename)
         {
-            // TODO
+            int funCount = functions.Count;
+            int exprCount = exprs.Count;
+            //int labelCount = labelAddress.Count;
+            var assembler = new Assembler();
+            AsmFunction[] asmf = new AsmFunction[funCount + 1];
+            AsmOperand[] expr2operand = new AsmOperand[exprCount];
+            //AsmOperand[] label2operand = new AsmOperand[labelCount];
+            int[] expr2label = new int[exprCount];
+            Array.Fill(expr2label, -1);
+
+            asmf[0] = new(false, false, 0);
+            for(int i = 0; i < funCount; i++)
+                if(functions[i].Dll is null)
+                {
+                    var elf = functions[i];
+                    var t = elf.ReturnType;
+                    var f = asmf[i + 1] = new(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size);
+                    for(int j = 0; j < elf.ParametersCount; j++)
+                    {
+                        var p = elf.GetParameter(j);
+                        t = p.Type;
+                        expr2operand[p.ID] = f.AddParameter(t is ELStructType, t is ELAtomType a1 && a1.Signed, t.Size);
+                    }
+                }
+
+            foreach(var e in exprs)
+            {
+                /*
+                 * TODO: list of exprs to perform
+                 * 
+                 * NB!!! label
+                 * 
+                 * binary
+                 * cast
+                 * copy
+                 * fieldref
+                 * funcall
+                 * goto + gotoif
+                 * int const
+                 * reference +
+                 * ref expr
+                 * return
+                 * unary
+                 * variable +
+                 * 
+                 * init data +
+                 * 
+                 */
+
+                AsmOperand GetReference(AsmOperand op)
+                {
+                    if (op.IsDeref()) return op.WithUse(AsmOperandUse.Val);
+                    if (op.IsVal()) return op.WithUse(AsmOperandUse.Ref);
+                    throw new Exception("Internal error");
+                }
+
+                AsmOperand Dereference(AsmOperand op, ELType newType, AsmFunction f)
+                {
+                    if (op.IsRef()) return op.WithUse(AsmOperandUse.Val);
+                    if (op.IsVal()) return op.WithUse(AsmOperandUse.Deref);
+                    if(op.IsDeref())
+                    {
+                        // TODO: type is required
+                        // TODO: по-видимому, нужно переназначать размеры
+                        // т.е. для *v указывать размер не v, а именно *v
+                        // пока ситуация обстоит иначе
+                    }
+                }
+
+                int id = e.ID;
+                if (!expr2operand[id].IsUndefined()) continue;
+                int context = expr2context[id];
+                var t = e.Type;
+
+                if(context == globalContext)
+                {
+                    if(e is ELVariable v)
+                    {
+                        expr2operand[id] = assembler.AddGlobal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size);
+                    }
+                    else if(e is ELInitializedData d)
+                    {
+                        expr2operand[id] = assembler.AddInitData(d.Values);
+                    }
+                }
+                else
+                {
+                    var f = asmf[id];
+                    expr2label[id] = f.GetIP();
+
+                    if(e is ELVariable variable)
+                    {
+                        expr2operand[id] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size);
+                    }
+                    else if(e is ELReference reference)
+                    {
+                        var res = f.AddLocal(false, false, Assembler.PtrSize);
+                        f.AddOperation(
+                            Assembler.MOV,
+                            expr2operand[reference.Pointer.ID],
+                            res);
+                        expr2operand[e.ID] = res.WithUse(AsmOperandUse.Deref);
+                    }
+                    else if(e is ELFieldReference fieldRef)
+                    {
+                        var res = f.AddLocal(false, false, Assembler.PtrSize);
+                        var offset = assembler.AddConst(fieldRef.FieldOffset, false, Assembler.PtrSize);
+                        // TODO ADD
+                    }
+                }
+            }
         }
     }
 }
