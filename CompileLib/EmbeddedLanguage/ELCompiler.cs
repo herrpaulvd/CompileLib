@@ -78,10 +78,25 @@ namespace CompileLib.EmbeddedLanguage
         internal ELExpression? TestContext(ELExpression expression, string name)
             => expression.compiler != this || InvalidContext(expr2context[expression.ID]) ? throw new ArgumentException("The operand has other context than the expression", name) : null;
 
+        public void Return()
+        {
+            if (currentContext == entryPointContext || functions[currentContext - funcOffset].ReturnType == ELType.Void)
+            {
+                AddExpression(new ELReturn(this));
+            }
+            else
+                throw new ArgumentException("The opened function must return Void", "context");
+        }
+
         public void Return(ELExpression result)
         {
-            TestContext(result, nameof(result));
-            AddExpression(new ELReturn(result));
+            if (currentContext != entryPointContext && result.Type.IsAssignableTo(functions[currentContext - funcOffset].ReturnType))
+            {
+                TestContext(result, nameof(result));
+                AddExpression(new ELReturn(result));
+            }
+            else
+                throw new ArgumentException("The function cannot return " + result.Type, "context");
         }
 
         public void Goto(ELLabel label)
@@ -265,7 +280,10 @@ namespace CompileLib.EmbeddedLanguage
                     }
                     else if (e is ELReturn ret)
                     {
-                        f.AddOperation(Assembler.RET, AsmOperand.Undefined, expr2operand[ret.ID]);
+                        if (ret.Result is null)
+                            f.AddOperation(Assembler.RET, AsmOperand.Undefined);
+                        else
+                            f.AddOperation(Assembler.RETVAL, AsmOperand.Undefined, expr2operand[ret.Result.ID]);
                     }
                     else if (e is ELGoto jump)
                     {
@@ -337,8 +355,6 @@ namespace CompileLib.EmbeddedLanguage
                     }
                     else if (e is ELBinaryOperation binary)
                     {
-                        // TODO: отдельно разобраться с указателями
-                        // TODO: надо подумать над отдельной ADDPTR операцией
                         if(binary.Operation == BinaryOperationType.MOV)
                         {
                             f.AddOperation(

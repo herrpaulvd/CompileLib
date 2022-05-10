@@ -8,8 +8,8 @@ namespace CompileLib.EmbeddedLanguage
 {
     internal class ELReturn : ELExpression
     {
-        private ELExpression result;
-        public ELExpression Result => result;
+        private ELExpression? result;
+        public ELExpression? Result => result;
 
         public ELReturn(ELExpression result)
             : base(result.compiler)
@@ -17,6 +17,11 @@ namespace CompileLib.EmbeddedLanguage
             this.result = result;
         }
 
-        public override ELType Type => result.Type;
+        public ELReturn(ELCompiler compiler) : base(compiler)
+        {
+            result = null;
+        }
+
+        public override ELType Type => result?.Type ?? ELType.Void;
     }
 }

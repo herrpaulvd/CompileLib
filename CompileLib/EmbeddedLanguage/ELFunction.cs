@@ -25,6 +25,9 @@ namespace CompileLib.EmbeddedLanguage
 
         internal ELFunction(ELCompiler compiler, int context, ELType returnType, ELVariable[] parameters)
         {
+            if (returnType is ELStructType)
+                throw new ArgumentException("Cannot create function returning struct type. Use return by reference instead", nameof(returnType));
+
             this.compiler = compiler;
             this.returnType = returnType;
             this.context = context;

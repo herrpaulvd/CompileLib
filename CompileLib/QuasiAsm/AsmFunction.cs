@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using CompileLib.PEGen;
+
 namespace CompileLib.QuasiAsm
 {
     internal class AsmFunction : IAsmOperationType
@@ -48,5 +50,28 @@ namespace CompileLib.QuasiAsm
             => AddOperation(type, destination, Tuple.Create(left, right));
         public void AddOperation(IAsmOperationType type, AsmOperand destination, AsmOperand[] source)
             => AddOperation(type, destination, source);
+
+        public void Compile(
+            List<byte> output, 
+            List<ImportLableTableRecord> importTable,
+            List<LableTableRecord> dataTable,
+            List<LableTableRecord> globalVarTable,
+            List<LableTableRecord> codeTable
+            )
+        {
+            // TODO: запретим возврат Struc из функции
+            // чтобы возвращать результат через регистры
+
+            // 1: оптимизация ячеек - строим граф на локальных переменных, на которые не берётся ссылка
+            // строим minmax
+            // делаем scanline с переопределением ячеек
+            // должен получиться массив index -> true AsmOperand
+
+            // 2: выделяем на стеке память под всё локальное - команда ENTER
+
+            // 3: emit => когда ret, не забываем вызвать LEAVE
+
+            // 4: проверка на ret в конце и добавление если нету
+        }
     }
 }

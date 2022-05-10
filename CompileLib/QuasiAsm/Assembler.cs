@@ -10,8 +10,9 @@ namespace CompileLib.QuasiAsm
     {
         public const int PtrSize = 8;
 
+        public static readonly AsmFixedOperation RET = new(AsmSenderRequired.None);
         public static readonly AsmFixedOperation GOTO = new(AsmSenderRequired.Single); // label
-        public static readonly AsmFixedOperation RET = new(AsmSenderRequired.Single);
+        public static readonly AsmFixedOperation RETVAL = new(AsmSenderRequired.Single);
         public static readonly AsmFixedOperation MOV = new(AsmSenderRequired.Single);
         public static readonly AsmFixedOperation BOOLEAN_NOT = new(AsmSenderRequired.Single);
         public static readonly AsmFixedOperation BITWISE_NOT = new(AsmSenderRequired.Single);
@@ -58,6 +59,10 @@ namespace CompileLib.QuasiAsm
         public void BuildAndSave(string filename, IEnumerable<AsmFunction> functions)
         {
             // TODO
+
+            // засунуть в data глобальные переменные
+
+            // обернуть вызов functions[0] в оболочку с ExitProcess
         }
     }
 }

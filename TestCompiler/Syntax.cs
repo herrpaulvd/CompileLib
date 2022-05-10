@@ -16,6 +16,7 @@ namespace TestCompiler
         private static readonly ELType PChar = TChar.MakePointer();
         private static readonly ELType SIZE = ELType.UInt64;
         private static readonly ELStructType TString = new(1, SIZE, PChar);
+        private static readonly ELType PString = TString.MakePointer();
         private static readonly ELDataBuilder dataBuilder = new();
 
         private const int FIELD_LENGTH = 0;
@@ -64,12 +65,12 @@ namespace TestCompiler
                 var nl = compiler.AddInitializedData(PChar, dataBuilder);
 
                 // str-concat function
-                var strconcat = compiler.CreateFunction(TString, TString, TString);
+                var strconcat = compiler.CreateFunction(ELType.Void, TString, TString, PString);
                 scope.AddHiddenObject("strconcat", strconcat);
                 strconcat.Open();
                 var a = strconcat.GetParameter(0);
                 var b = strconcat.GetParameter(1);
-                var result = compiler.AddLocalVariable(TString);
+                var result = strconcat.GetParameter(2).PtrToRef();
                 var alen = a.FieldRef(FIELD_LENGTH);
                 var blen = b.FieldRef(FIELD_LENGTH);
                 var length =  alen + blen;
@@ -78,15 +79,15 @@ namespace TestCompiler
                 memcpy.Call(s, a.FieldRef(FIELD_CHARS), alen);
                 memcpy.Call(s + alen, b.FieldRef(FIELD_CHARS), blen);
                 result.FieldRef(FIELD_CHARS).Value = s;
-                compiler.Return(result);
+                compiler.Return();
 
                 // readline function
-                var readline = compiler.CreateFunction(TString);
+                var readline = compiler.CreateFunction(ELType.Void, PString);
                 scope.AddHiddenObject("readln", readline);
                 readline.Open();
-                result = compiler.AddLocalVariable(TString);
+                result = strconcat.GetParameter(0).PtrToRef();
                 result.FieldRef(FIELD_CHARS).Value = ConsoleReadLineW.Call(result.FieldRef(FIELD_LENGTH));
-                compiler.Return(result);
+                compiler.Return();
 
                 // write function
                 var write = compiler.CreateFunction(ELType.PVoid, TString);
@@ -175,7 +176,7 @@ namespace TestCompiler
                     var vExpr = expression as ExprVariable;
                     var v = scope.GetObject<VariableInfo>(vExpr.Name);
                     if (v is null) throw new Error("Undeclared variable");
-                    v.Self.Value = scope.GetHiddenObject<ELFunction>(operation).Call();
+                    scope.GetHiddenObject<ELFunction>(operation).Call(v.Self.Address);
                 }
             }
         }
@@ -250,8 +251,10 @@ namespace TestCompiler
                 }
                 else if(Sign == "+")
                 {
-                    return scope.GetHiddenObject<ELFunction>("strconcat")
-                        .Call(Left.Compile(scope, compiler), Right.Compile(scope, compiler));
+                    var v = compiler.AddLocalVariable(TString);
+                    scope.GetHiddenObject<ELFunction>("strconcat")
+                        .Call(Left.Compile(scope, compiler), Right.Compile(scope, compiler), v.Address);
+                    return v;
                 }
 
                 throw new Error("Internal error");
