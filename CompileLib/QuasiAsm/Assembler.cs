@@ -25,22 +25,21 @@ namespace CompileLib.QuasiAsm
 
         private List<AsmOperand> globals = new();
         private List<long> consts = new();
-        private List<AsmFunction> functions = new();
         private List<byte[]> initData = new();
 
-        public AsmOperand AddGlobal(bool struc, bool signed, int size)
+        public AsmOperand AddGlobal(bool struc, bool signed, int size, object tag)
         {
             int id = globals.Count;
-            AsmOperand result = new(AsmOperandType.Param, AsmOperandUse.Val, struc, signed, id, size);
+            AsmOperand result = new(AsmOperandType.Param, AsmOperandUse.Val, struc, signed, id, size, tag);
             globals.Add(result);
             return result;
         }
 
-        public AsmOperand AddConst(long value, bool signed, int size)
+        public AsmOperand AddConst(long value, bool signed, int size, object tag)
         {
             int id = consts.Count;
             consts.Add(value);
-            return new(AsmOperandType.Param, AsmOperandUse.Val, false, signed, id, size);
+            return new(AsmOperandType.Param, AsmOperandUse.Val, false, signed, id, size, tag);
         }
 
         public void ReplaceConst(AsmOperand operand, long value)
@@ -48,15 +47,17 @@ namespace CompileLib.QuasiAsm
             consts[operand.ID] = value;
         }
 
-        public void AddFunction(AsmFunction function)
-            => functions.Add(function);
-
         // returns ptr as val, not &val
-        public AsmOperand AddInitData(byte[] data)
+        public AsmOperand AddInitData(byte[] data, object tag)
         {
             int id = initData.Count;
             initData.Add(data);
-            return new AsmOperand(AsmOperandType.Param, AsmOperandUse.Val, false, false, id, PtrSize);
+            return new AsmOperand(AsmOperandType.InitData, AsmOperandUse.Val, false, false, id, PtrSize, tag);
+        }
+
+        public void BuildAndSave(string filename, IEnumerable<AsmFunction> functions)
+        {
+            // TODO
         }
     }
 }

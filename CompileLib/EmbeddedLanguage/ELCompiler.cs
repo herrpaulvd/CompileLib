@@ -115,6 +115,7 @@ namespace CompileLib.EmbeddedLanguage
 
         public ELExpression AddInitializedData(ELType type, ELDataBuilder dataBuilder)
         {
+            if (type is not ELPointerType) throw new ArgumentException("Initialized data type must be always a pointer", nameof(type));
             var result = new ELInitializedData(this, dataBuilder.CreateArray(), type);
             data.Add(result);
             return AddExpression(result, globalContext);
@@ -122,28 +123,33 @@ namespace CompileLib.EmbeddedLanguage
 
         public void BuildAndSave(string filename)
         {
+            const int PtrSize = Assembler.PtrSize;
+
             int funCount = functions.Count;
             int exprCount = exprs.Count;
-            //int labelCount = labelAddress.Count;
+            int labelCount = labelAddress.Count;
+
             var assembler = new Assembler();
             AsmFunction[] asmf = new AsmFunction[funCount + 1];
             AsmOperand[] expr2operand = new AsmOperand[exprCount];
-            //AsmOperand[] label2operand = new AsmOperand[labelCount];
-            int[] expr2label = new int[exprCount];
-            Array.Fill(expr2label, -1);
+            AsmOperand[] label2operand = new AsmOperand[labelCount];
+            int[] expr2ip = new int[exprCount];
+            Array.Fill(expr2ip, -1);
 
-            asmf[0] = new(false, false, 0);
+            List<(int, int, int)> usedLabels = new();
+
+            asmf[0] = new(false, false, 0, ELType.Void);
             for(int i = 0; i < funCount; i++)
                 if(functions[i].Dll is null)
                 {
                     var elf = functions[i];
                     var t = elf.ReturnType;
-                    var f = asmf[i + 1] = new(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size);
+                    var f = asmf[i + 1] = new(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
                     for(int j = 0; j < elf.ParametersCount; j++)
                     {
                         var p = elf.GetParameter(j);
                         t = p.Type;
-                        expr2operand[p.ID] = f.AddParameter(t is ELStructType, t is ELAtomType a1 && a1.Signed, t.Size);
+                        expr2operand[p.ID] = f.AddParameter(t is ELStructType, t is ELAtomType a1 && a1.Signed, t.Size, t);
                     }
                 }
 
@@ -154,41 +160,58 @@ namespace CompileLib.EmbeddedLanguage
                  * 
                  * NB!!! label
                  * 
-                 * binary
-                 * cast
-                 * copy
-                 * fieldref
-                 * funcall
-                 * goto + gotoif
-                 * int const
+                 * binary +
+                 * cast +
+                 * copy +
+                 * fieldref +
+                 * funcall +
+                 * goto + gotoif +
+                 * int const +
                  * reference +
-                 * ref expr
-                 * return
-                 * unary
+                 * ref expr +
+                 * return +
+                 * unary +
                  * variable +
                  * 
                  * init data +
                  * 
                  */
 
-                AsmOperand GetReference(AsmOperand op)
+                AsmOperand MakeReference(AsmOperand op)
                 {
-                    if (op.IsDeref()) return op.WithUse(AsmOperandUse.Val);
-                    if (op.IsVal()) return op.WithUse(AsmOperandUse.Ref);
-                    throw new Exception("Internal error");
+                    if (op.IsDeref())
+                    {
+                        var tup = (op.Tag as ELType).MakePointer();
+                        return op.ChangeUse(AsmOperandUse.Val, false, false, PtrSize, tup);
+                    }
+                    if (op.IsVal())
+                    {
+                        var tup = (op.Tag as ELType).MakePointer();
+                        return op.ChangeUse(AsmOperandUse.Ref, false, false, PtrSize, tup);
+                    }
+                    throw new NotImplementedException();
                 }
 
-                AsmOperand Dereference(AsmOperand op, ELType newType, AsmFunction f)
+                AsmOperand Dereference(AsmOperand op, AsmFunction f)
                 {
-                    if (op.IsRef()) return op.WithUse(AsmOperandUse.Val);
-                    if (op.IsVal()) return op.WithUse(AsmOperandUse.Deref);
+                    if (op.IsRef())
+                    {
+                        var tdown = (op.Tag as ELPointerType).BaseType;
+                        return op.ChangeUse(AsmOperandUse.Val, tdown is ELStructType, tdown is ELAtomType a1 && a1.Signed, tdown.Size, tdown);
+                    }
+                    if (op.IsVal())
+                    {
+                        var tdown = (op.Tag as ELPointerType).BaseType;
+                        return op.ChangeUse(AsmOperandUse.Deref, tdown is ELStructType, tdown is ELAtomType a1 && a1.Signed, tdown.Size, tdown);
+                    }
                     if(op.IsDeref())
                     {
-                        // TODO: type is required
-                        // TODO: по-видимому, нужно переназначать размеры
-                        // т.е. для *v указывать размер не v, а именно *v
-                        // пока ситуация обстоит иначе
+                        var tdown = (op.Tag as ELPointerType).BaseType;
+                        var tempVar = f.AddLocal(op.IsStruc(), op.IsSigned(), op.Size, op.Tag);
+                        f.AddOperation(Assembler.MOV, tempVar, op);
+                        return tempVar.ChangeUse(AsmOperandUse.Deref, tdown is ELStructType, tdown is ELAtomType a1 && a1.Signed, tdown.Size, tdown);
                     }
+                    throw new NotImplementedException();
                 }
 
                 int id = e.ID;
@@ -200,39 +223,197 @@ namespace CompileLib.EmbeddedLanguage
                 {
                     if(e is ELVariable v)
                     {
-                        expr2operand[id] = assembler.AddGlobal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size);
+                        expr2operand[id] = assembler.AddGlobal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, v.Type);
                     }
                     else if(e is ELInitializedData d)
                     {
-                        expr2operand[id] = assembler.AddInitData(d.Values);
+                        expr2operand[id] = assembler.AddInitData(d.Values, d.Type);
                     }
                 }
                 else
                 {
                     var f = asmf[id];
-                    expr2label[id] = f.GetIP();
+                    expr2ip[id] = f.GetIP();
 
-                    if(e is ELVariable variable)
+                    if (e is ELVariable variable)
                     {
-                        expr2operand[id] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size);
+                        expr2operand[id] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
                     }
-                    else if(e is ELReference reference)
+                    else if (e is ELReference reference)
                     {
-                        var res = f.AddLocal(false, false, Assembler.PtrSize);
+                        var res = f.AddLocal(false, false, PtrSize, e.Type.MakePointer());
                         f.AddOperation(
                             Assembler.MOV,
-                            expr2operand[reference.Pointer.ID],
-                            res);
-                        expr2operand[e.ID] = res.WithUse(AsmOperandUse.Deref);
+                            res,
+                            expr2operand[reference.Pointer.ID]);
+                        expr2operand[e.ID] = Dereference(res, f);
                     }
-                    else if(e is ELFieldReference fieldRef)
+                    else if (e is ELFieldReference fieldRef)
                     {
-                        var res = f.AddLocal(false, false, Assembler.PtrSize);
-                        var offset = assembler.AddConst(fieldRef.FieldOffset, false, Assembler.PtrSize);
-                        // TODO ADD
+                        var res = f.AddLocal(false, false, PtrSize, e.Type.MakePointer());
+                        var offset = assembler.AddConst(fieldRef.FieldOffset, false, PtrSize, ELType.UInt64);
+                        f.AddOperation(
+                            Assembler.ADD,
+                            res,
+                            expr2operand[fieldRef.Operand.ID],
+                            offset);
+                        expr2operand[fieldRef.Operand.ID] = Dereference(res, f);
                     }
+                    else if (e is ELIntegerConst intconst)
+                    {
+                        expr2operand[e.ID] = assembler.AddConst(intconst.SignedValue, t is ELAtomType a0 && a0.Signed, t.Size, t);
+                    }
+                    else if (e is ELReturn ret)
+                    {
+                        f.AddOperation(Assembler.RET, AsmOperand.Undefined, expr2operand[ret.ID]);
+                    }
+                    else if (e is ELGoto jump)
+                    {
+                        int labelID = jump.Target.ID;
+                        if (label2operand[labelID].IsUndefined())
+                        {
+                            if (labelAddress[labelID] < 0)
+                                throw new Exception("A label is unmarked");
+                            usedLabels.Add((labelAddress[labelID], labelID, jump.Target.Context));
+                            label2operand[labelID] = assembler.AddConst(0, false, PtrSize, ELType.PVoid);
+                        }
+                        if (jump.Condition is null)
+                            f.AddOperation(Assembler.GOTO, AsmOperand.Undefined, label2operand[labelID]);
+                        else
+                            f.AddOperation(Assembler.GOTOIF, AsmOperand.Undefined, expr2operand[jump.Condition.ID], label2operand[labelID]);
+                    }
+                    else if (e is ELCastExpression cast)
+                    {
+                        expr2operand[e.ID] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
+                        f.AddOperation(
+                            Assembler.MOV,
+                            expr2operand[e.ID],
+                            expr2operand[cast.Operand.ID]);
+                    }
+                    else if (e is ELCopy copy)
+                    {
+                        expr2operand[e.ID] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
+                        f.AddOperation(
+                            Assembler.MOV,
+                            expr2operand[e.ID],
+                            expr2operand[copy.Operand.ID]);
+                    }
+                    else if (e is ELReferenceExpression refexpr)
+                    {
+                        expr2operand[e.ID] = MakeReference(expr2operand[refexpr.Expression.ID]);
+                    }
+                    else if (e is ELFunctionCall funcall)
+                    {
+                        expr2operand[e.ID] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
+                        var elfun = funcall.Function;
+                        if (elfun.Dll is null || elfun.Name is null)
+                        {
+                            f.AddOperation(
+                                asmf[elfun.Context],
+                                expr2operand[e.ID],
+                                funcall.AllArgs().Select(a => expr2operand[a.ID]).ToArray());
+                        }
+                        else
+                        {
+                            f.AddOperation(
+                                new AsmImportCall(elfun.Dll, elfun.Name),
+                                expr2operand[e.ID],
+                                funcall.AllArgs().Select(a => expr2operand[a.ID]).ToArray());
+                        }
+                    }
+                    else if (e is ELUnaryOperation unary)
+                    {
+                        expr2operand[e.ID] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
+                        f.AddOperation(
+                            unary.Operation switch
+                            {
+                                UnaryOperationType.NEG => Assembler.NEG,
+                                UnaryOperationType.BITWISE_NOT => Assembler.BITWISE_NOT,
+                                UnaryOperationType.BOOLEAN_NOT => Assembler.BOOLEAN_NOT,
+                                _ => throw new NotImplementedException()
+                            },
+                            expr2operand[e.ID],
+                            expr2operand[unary.Operand.ID]);
+                    }
+                    else if (e is ELBinaryOperation binary)
+                    {
+                        // TODO: отдельно разобраться с указателями
+                        // TODO: надо подумать над отдельной ADDPTR операцией
+                        if(binary.Operation == BinaryOperationType.MOV)
+                        {
+                            f.AddOperation(
+                                Assembler.MOV,
+                                expr2operand[binary.Left.ID],
+                                expr2operand[binary.Right.ID]);
+                        }
+                        else
+                        {
+                            expr2operand[e.ID] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
+                            if(binary.Left.Type is ELPointerType pt)
+                            {
+                                AsmOperand right;
+                                if(pt.Size == 1)
+                                {
+                                    right = expr2operand[binary.Right.ID];
+                                }
+                                else
+                                {
+                                    var sizeconst = assembler.AddConst(pt.Size, false, PtrSize, ELType.UInt64);
+                                    right = f.AddLocal(false, false, PtrSize, ELType.UInt64);
+                                    f.AddOperation(
+                                        Assembler.MUL,
+                                        right,
+                                        expr2operand[binary.Right.ID],
+                                        sizeconst);
+                                }
+                                f.AddOperation(
+                                    binary.Operation switch
+                                    {
+                                        BinaryOperationType.ADD => Assembler.ADD,
+                                        BinaryOperationType.SUB => Assembler.SUB,
+                                        _ => throw new NotImplementedException()
+                                    },
+                                    expr2operand[e.ID],
+                                    expr2operand[binary.Left.ID],
+                                    right);
+                            }
+                            else
+                            {
+                                f.AddOperation(
+                                    binary.Operation switch
+                                    {
+                                        BinaryOperationType.ADD => Assembler.ADD,
+                                        BinaryOperationType.SUB => Assembler.SUB,
+                                        BinaryOperationType.MUL => Assembler.MUL,
+                                        BinaryOperationType.DIV => Assembler.DIV,
+                                        _ => throw new NotImplementedException()
+                                    },
+                                    expr2operand[e.ID],
+                                    expr2operand[binary.Left.ID],
+                                    expr2operand[binary.Right.ID]);
+                            }
+                        }
+                    }
+                    else throw new NotImplementedException();
                 }
             }
+
+            usedLabels.Sort();
+            usedLabels.Reverse();
+            int[] currIP = Array.ConvertAll(asmf, f => f.GetIP());
+            int currExpr = exprCount;
+            foreach(var (address, id, context) in usedLabels)
+            {
+                while(currExpr > address)
+                {
+                    currExpr--;
+                    if(expr2context[currExpr] >= 0)
+                        currIP[expr2context[currExpr]] = expr2ip[currExpr];
+                }
+                assembler.ReplaceConst(label2operand[id], currIP[context]);
+            }
+
+            assembler.BuildAndSave(filename, asmf.Where(f => f is not null));
         }
     }
 }

@@ -33,10 +33,8 @@ namespace CompileLib.EmbeddedLanguage
 
         private static ELType? CheckPointerArithmetic(ELType left, ELType right)
         {
-            if (left is ELPointerType && right.IsAssignableTo(ELType.Int64) || right.IsAssignableTo(ELType.UInt64))
+            if (left is ELPointerType pt && pt.BaseType.Size > 0 && (right.IsAssignableTo(ELType.Int64) || right.IsAssignableTo(ELType.UInt64)))
                 return left;
-            if (right is ELPointerType && left.IsAssignableTo(ELType.Int64) || left.IsAssignableTo(ELType.UInt64))
-                return right;
             return null;
         }
 

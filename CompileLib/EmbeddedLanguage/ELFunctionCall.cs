@@ -18,9 +18,10 @@ namespace CompileLib.EmbeddedLanguage
             this.args = args;
         }
 
-        public object Function => function;
+        public ELFunction Function => function;
         public int ArgumentsCount => args.Length;
         public ELExpression GetArgument(int index) => args[index];
+        public IEnumerable<ELExpression> AllArgs() => args;
         public override ELType Type => function.ReturnType;
     }
 }

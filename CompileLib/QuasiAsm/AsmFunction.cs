@@ -15,23 +15,23 @@ namespace CompileLib.QuasiAsm
 
         public AsmSenderRequired SenderRequired => AsmSenderRequired.Array;
 
-        public AsmFunction(bool struc, bool signed, int size)
+        public AsmFunction(bool struc, bool signed, int size, object tag)
         {
-            result = new(AsmOperandType.LocalVar, AsmOperandUse.Val, struc, signed, 0, size);
+            result = new(AsmOperandType.LocalVar, AsmOperandUse.Val, struc, signed, 0, size, tag);
         }
 
-        public AsmOperand AddParameter(bool struc, bool signed, int size)
+        public AsmOperand AddParameter(bool struc, bool signed, int size, object tag)
         {
             int id = parameters.Count;
-            AsmOperand result = new(AsmOperandType.Param, AsmOperandUse.Val, struc, signed, id, size);
+            AsmOperand result = new(AsmOperandType.Param, AsmOperandUse.Val, struc, signed, id, size, tag);
             parameters.Add(result);
             return result;
         }
 
-        public AsmOperand AddLocal(bool struc, bool signed, int size)
+        public AsmOperand AddLocal(bool struc, bool signed, int size, object tag)
         {
             int id = locals.Count;
-            AsmOperand result = new(AsmOperandType.LocalVar, AsmOperandUse.Val, struc, signed, id, size);
+            AsmOperand result = new(AsmOperandType.LocalVar, AsmOperandUse.Val, struc, signed, id, size, tag);
             locals.Add(result);
             return result;
         }

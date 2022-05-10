@@ -12,7 +12,6 @@ namespace CompileLib.QuasiAsm
         Param = GlobalVar + 1,
         LocalVar = Param + 1,
         Const = LocalVar + 1,
-        Nothing = Const,
         InitData = Const + 1,
     }
 
@@ -32,7 +31,6 @@ namespace CompileLib.QuasiAsm
             Param = 1 << AsmOperandType.Param,
             LocalVar = 1 << AsmOperandType.LocalVar,
             Const = 1 << AsmOperandType.Const,
-            Nothing = Const,
             InitData = 1 << AsmOperandType.InitData,
             Ref = 1 << AsmOperandUse.Ref,
             Val = 1 << AsmOperandUse.Val,
@@ -46,12 +44,14 @@ namespace CompileLib.QuasiAsm
         private Flags flags;
         public int ID;
         public int Size;
+        public object Tag;
 
-        private AsmOperand(Flags flags, int id, int size)
+        private AsmOperand(Flags flags, int id, int size, object tag)
         {
             this.flags = flags;
             ID = id;
             Size = size;
+            Tag = tag;
         }
 
         public AsmOperand(
@@ -60,10 +60,12 @@ namespace CompileLib.QuasiAsm
             bool struc,
             bool signed,
             int id, 
-            int size)
+            int size,
+            object tag)
         {
             ID = id;
             Size = size;
+            Tag = tag;
 
             flags = 0;
             flags |= operandType switch
@@ -90,7 +92,6 @@ namespace CompileLib.QuasiAsm
         public bool IsParam() => (flags & Flags.Param) != 0;
         public bool IsLocalVar() => (flags & Flags.LocalVar) != 0;
         public bool IsConst() => (flags & Flags.Const) != 0;
-        public bool IsNothing() => (flags & Flags.Nothing) != 0;
         public bool IsInitData() => (flags & Flags.InitData) != 0;
         public bool IsRef() => (flags & Flags.Ref) != 0;
         public bool IsVal() => (flags & Flags.Val) != 0;
@@ -99,11 +100,30 @@ namespace CompileLib.QuasiAsm
         public bool IsSigned() => (flags & Flags.Signed) != 0;
         public bool IsUndefined() => flags == 0;
 
-        public AsmOperand WithType(AsmOperandType t) => new(flags & (Flags.FullExceptType | (Flags)(1 << (int)t)), ID, Size);
-        public AsmOperand WithUse(AsmOperandUse u) => new(flags & (Flags.FullExceptUse | (Flags)(1 << (int)u)), ID, Size);
-        public AsmOperand SwitchStruc() => new(flags ^ Flags.Struc, ID, Size);
-        public AsmOperand SwitchSigned() => new(flags ^ Flags.Signed, ID, Size);
-        public AsmOperand WithID(int id) => new(flags, id, Size);
-        public AsmOperand WithSize(int size) => new(flags, ID, size);
+        //public AsmOperand WithType(AsmOperandType t) => new(flags & (Flags.FullExceptType | (Flags)(1 << (int)t)), ID, Size, Tag);
+        //public AsmOperand WithUse(AsmOperandUse u) => new(flags & (Flags.FullExceptUse | (Flags)(1 << (int)u)), ID, Size, Tag);
+        //public AsmOperand WithStruc(bool struc) => new(struc ? flags | Flags.Struc : flags & ~Flags.Struc, ID, Size, Tag);
+        //public AsmOperand WithSigned(bool signed) => new(signed ? flags | Flags.Signed : flags & ~Flags.Signed, ID, Size, Tag);
+        //public AsmOperand WithID(int id) => new(flags, id, Size, Tag);
+        //public AsmOperand WithSize(int size) => new(flags, ID, size, Tag);
+        //public AsmOperand WithTag(object tag) => new(flags, ID, Size, tag);
+
+        public static AsmOperand Undefined => new();
+
+        public AsmOperandType OperandType
+        {
+            get
+            {
+                if (IsGlobalVar()) return AsmOperandType.GlobalVar;
+                if (IsParam()) return AsmOperandType.Param;
+                if (IsLocalVar()) return AsmOperandType.LocalVar;
+                if (IsConst()) return AsmOperandType.Const;
+                if (IsInitData()) return AsmOperandType.InitData;
+                throw new NotImplementedException();
+            }
+        }
+
+        public AsmOperand ChangeUse(AsmOperandUse use, bool struc, bool signed, int size, object tag)
+            => new(OperandType, use, struc, signed, ID, size, tag);
     }
 }

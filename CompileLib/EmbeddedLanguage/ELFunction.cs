@@ -21,6 +21,7 @@ namespace CompileLib.EmbeddedLanguage
         public string? Dll => dll;
         public string? Name => name;
         internal ELCompiler Compiler => compiler;
+        internal int Context => context;
 
         internal ELFunction(ELCompiler compiler, int context, ELType returnType, ELVariable[] parameters)
         {
