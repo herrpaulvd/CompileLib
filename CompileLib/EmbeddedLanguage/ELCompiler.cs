@@ -322,7 +322,10 @@ namespace CompileLib.EmbeddedLanguage
                     }
                     else if (e is ELFunctionCall funcall)
                     {
-                        expr2operand[e.ID] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
+                        if (funcall.Function.ReturnType == ELType.Void)
+                            expr2operand[e.ID] = AsmOperand.Undefined;
+                        else
+                            expr2operand[e.ID] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
                         var elfun = funcall.Function;
                         if (elfun.Dll is null || elfun.Name is null)
                         {

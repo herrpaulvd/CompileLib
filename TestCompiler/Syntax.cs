@@ -65,11 +65,11 @@ namespace TestCompiler
                 var nl = compiler.AddInitializedData(PChar, dataBuilder);
 
                 // str-concat function
-                var strconcat = compiler.CreateFunction(ELType.Void, TString, TString, PString);
+                var strconcat = compiler.CreateFunction(ELType.Void, PString, PString, PString);
                 scope.AddHiddenObject("strconcat", strconcat);
                 strconcat.Open();
-                var a = strconcat.GetParameter(0);
-                var b = strconcat.GetParameter(1);
+                var a = strconcat.GetParameter(0).PtrToRef();
+                var b = strconcat.GetParameter(1).PtrToRef();
                 var result = strconcat.GetParameter(2).PtrToRef();
                 var alen = a.FieldRef(FIELD_LENGTH);
                 var blen = b.FieldRef(FIELD_LENGTH);
@@ -90,20 +90,20 @@ namespace TestCompiler
                 compiler.Return();
 
                 // write function
-                var write = compiler.CreateFunction(ELType.PVoid, TString);
+                var write = compiler.CreateFunction(ELType.PVoid, PString);
                 scope.AddHiddenObject("write", write);
                 write.Open();
-                a = write.GetParameter(0);
+                a = write.GetParameter(0).PtrToRef();
                 ConsoleWriteW.Call(a.FieldRef(FIELD_CHARS), a.FieldRef(FIELD_LENGTH));
 
                 // writeln function
-                var writeln = compiler.CreateFunction(ELType.PVoid, TString);
+                var writeln = compiler.CreateFunction(ELType.PVoid, PString);
                 scope.AddHiddenObject("writeln", writeln);
                 writeln.Open();
                 var suffix = compiler.AddLocalVariable(TString);
                 suffix.FieldRef(FIELD_CHARS).Value = nl;
                 suffix.FieldRef(FIELD_LENGTH).Value = compiler.MakeConst((uint)nlstr.Length);
-                write.Call(strconcat.Call(writeln.GetParameter(0), suffix));
+                write.Call(strconcat.Call(writeln.GetParameter(0), suffix.Address));
 
                 compiler.OpenEntryPoint();
                 foreach (var statement in statements)
@@ -143,7 +143,7 @@ namespace TestCompiler
                 {
                     if (variableType != "string")
                         throw new Error("The only type to be allowed is string");
-                    var v = compiler.AddLocalVariable(PChar);
+                    var v = compiler.AddLocalVariable(PString);
                     var vInfo = new VariableInfo(variableName ?? throw new Error("Internal error"), v);
                     if (!scope.AddCodeObject(variableName, vInfo))
                         throw new Error($"A variable with the name {variableName} already exists");
@@ -176,7 +176,10 @@ namespace TestCompiler
                     var vExpr = expression as ExprVariable;
                     var v = scope.GetObject<VariableInfo>(vExpr.Name);
                     if (v is null) throw new Error("Undeclared variable");
-                    scope.GetHiddenObject<ELFunction>(operation).Call(v.Self.Address);
+
+                    var storage = compiler.AddLocalVariable(TString).Address;
+                    scope.GetHiddenObject<ELFunction>(operation).Call(storage);
+                    v.Self.Value = storage;
                 }
             }
         }
@@ -221,7 +224,7 @@ namespace TestCompiler
                 var result = compiler.AddLocalVariable(TString);
                 result.FieldRef(FIELD_LENGTH).Value = compiler.MakeConst((uint)len);
                 result.FieldRef(FIELD_CHARS).Value = compiler.AddInitializedData(PChar, dataBuilder);
-                return result;
+                return result.Address;
             }
         }
 
@@ -251,9 +254,9 @@ namespace TestCompiler
                 }
                 else if(Sign == "+")
                 {
-                    var v = compiler.AddLocalVariable(TString);
+                    var v = compiler.AddLocalVariable(TString).Address;
                     scope.GetHiddenObject<ELFunction>("strconcat")
-                        .Call(Left.Compile(scope, compiler), Right.Compile(scope, compiler), v.Address);
+                        .Call(Left.Compile(scope, compiler), Right.Compile(scope, compiler), v);
                     return v;
                 }
 

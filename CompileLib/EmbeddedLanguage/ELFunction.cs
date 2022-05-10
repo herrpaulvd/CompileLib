@@ -27,6 +27,8 @@ namespace CompileLib.EmbeddedLanguage
         {
             if (returnType is ELStructType)
                 throw new ArgumentException("Cannot create function returning struct type. Use return by reference instead", nameof(returnType));
+            if (parameters.Any(p => p.Type is ELStructType))
+                throw new ArgumentException("Cannot create function getting struct type args. Use pointers to them instead");
 
             this.compiler = compiler;
             this.returnType = returnType;

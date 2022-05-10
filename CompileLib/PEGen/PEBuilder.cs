@@ -9,6 +9,11 @@ namespace CompileLib.PEGen
     internal struct SectionLabel
     {
         public int Offset;
+
+        public SectionLabel(int offset)
+        {
+            Offset = offset;
+        }
     }
 
     internal struct LableTableRecord
@@ -17,12 +22,29 @@ namespace CompileLib.PEGen
         public SectionLabel What;
         public bool IsRelative;
         public int BytesToWrite; // 1/2/4/8
+
+        public LableTableRecord(int where, SectionLabel what, bool isRelative, int bytesToWrite)
+        {
+            Where = where;
+            What = what;
+            IsRelative = isRelative;
+            BytesToWrite = bytesToWrite;
+        }
+
+        public LableTableRecord(int where, int what, bool isRelative, int bytesToWrite)
+            : this(where, new SectionLabel(what), isRelative, bytesToWrite) { }
     }
 
     internal struct ImportSectionLabel
     {
         public string DllName;
         public string FunctionName;
+
+        public ImportSectionLabel(string dllName, string functionName)
+        {
+            DllName = dllName;
+            FunctionName = functionName;
+        }
     }
 
     internal struct ImportLableTableRecord
@@ -31,6 +53,14 @@ namespace CompileLib.PEGen
         public ImportSectionLabel What;
         public bool IsRelative;
         public int BytesToWrite; // 1/2/4/8
+
+        public ImportLableTableRecord(int where, ImportSectionLabel what, bool isRelative, int bytesToWrite)
+        {
+            Where = where;
+            What = what;
+            IsRelative = isRelative;
+            BytesToWrite = bytesToWrite;
+        }
     }
 
     internal class PEBuilder
