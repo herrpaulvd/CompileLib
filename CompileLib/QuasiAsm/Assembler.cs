@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using CompileLib.PEGen;
+
 namespace CompileLib.QuasiAsm
 {
     internal class Assembler
@@ -56,13 +58,82 @@ namespace CompileLib.QuasiAsm
             return new AsmOperand(AsmOperandType.InitData, AsmOperandUse.Val, false, false, id, PtrSize, tag);
         }
 
-        public void BuildAndSave(string filename, IEnumerable<AsmFunction> functions)
+        public void BuildAndSave(string filename, AsmFunction[] functions)
         {
-            // TODO
+            for (int i = 0; i < functions.Length; i++)
+                functions[i].CallIndex = i;
 
-            // засунуть в data глобальные переменные
+            List<byte> output = new();
+            List<ImportLableTableRecord> importTable = new();
+            List<LableTableRecord> dataTable = new();
+            List<LableTableRecord> globalVarTable = new();
+            List<LableTableRecord> callTable = new();
+            List<LableTableRecord> jumpTable = new();
 
-            // обернуть вызов functions[0] в оболочку с ExitProcess
+            // wrapper for functions[0]
+            output.Add(0xE8);
+            for(int i = 0; i < 4; i++) output.Add(0);
+            callTable.Add(new(output.Count, 0, true, 4));
+            output.AddRange(new byte[]
+            {
+                0x48, 0x83, 0xEC, 0x20, // sub RSP, 32
+                0x40, 0x80, 0xE4, 0xF0, // and SPL, 0xF0
+                0x48, 0x31, 0xC9        // xor RCX, RCX
+            });
+            output.Add(0xFF);
+            output.Add(0x14);
+            output.Add(0x25);
+            for (int i = 0; i < 4; i++) output.Add(0);
+            importTable.Add(new(output.Count, new("kernel32.dll", "ExitProcess"), false, 4));
+
+            int[] fun2address = new int[functions.Length];
+            foreach (var f in functions)
+            {
+                fun2address[f.CallIndex] = output.Count;
+                f.Compile(output, importTable, dataTable, globalVarTable, callTable, jumpTable, consts);
+            }
+
+            // TODO: address resolving
+            List<byte> data = new();
+            int[] data2address = new int[initData.Count];
+            for (int i = 0; i < initData.Count; i++)
+            {
+                data2address[i] = data.Count;
+                data.AddRange(initData[i]);
+            }
+            int[] global2address = new int[globals.Count];
+            for(int i = 0; i < globals.Count; i++)
+            {
+                global2address[i] = data.Count;
+                for (int j = 0; j < globals[i].Size; j++) data.Add(0);
+            }
+
+            for(int i = 0; i < dataTable.Count; i++)
+            {
+                var d = dataTable[i];
+                d.What.Offset = data2address[d.What.Offset];
+                dataTable[i] = d;
+            }
+            for(int i = 0; i < globalVarTable.Count; i++)
+            {
+                var d = globalVarTable[i];
+                d.What.Offset = global2address[d.What.Offset];
+                dataTable.Add(d);
+            }
+            for(int i = 0; i < callTable.Count; i++)
+            {
+                var d = callTable[i];
+                d.What.Offset = fun2address[d.What.Offset];
+                jumpTable.Add(d);
+            }
+
+            PEBuilder.CreateAndSaveImage(
+                filename, 
+                data, 
+                output, 
+                importTable.ToArray(), 
+                dataTable.ToArray(), 
+                jumpTable.ToArray());
         }
     }
 }

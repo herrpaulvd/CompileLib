@@ -56,7 +56,7 @@ namespace CompileLib.EmbeddedLanguage
             realloc.Open();
             compiler.Return(HeapReAlloc.Call(hHeap, (compiler.MakeConst(reallocAuto0Fill ? 0x08U : 0U)), pOld, pSize));
 
-            this.free = free = compiler.CreateFunction(ELType.Void, SIZE);
+            this.free = free = compiler.CreateFunction(ELType.Void, LPVOID);
             pOld = free.GetParameter(0);
             free.Open();
             HeapFree.Call(hHeap, compiler.MakeConst(0U), pOld);
@@ -76,7 +76,7 @@ namespace CompileLib.EmbeddedLanguage
                 return this;
             }
 
-            memcpy = compiler.ImportFunction("kernel32.dll", "CopyMemory", ELType.Void, LPVOID, LPVOID, SIZE);
+            this.memcpy = memcpy = compiler.ImportFunction("kernel32.dll", "CopyMemory", ELType.Void, LPVOID, LPVOID, SIZE);
             return this;
         }
 
@@ -92,7 +92,7 @@ namespace CompileLib.EmbeddedLanguage
                 return this;
             }
 
-            memmove = compiler.ImportFunction("kernel32.dll", "MoveMemory", ELType.Void, LPVOID, LPVOID, SIZE);
+            this.memmove = memmove = compiler.ImportFunction("kernel32.dll", "MoveMemory", ELType.Void, LPVOID, LPVOID, SIZE);
             return this;
         }
 
@@ -146,7 +146,7 @@ namespace CompileLib.EmbeddedLanguage
             ConsoleWriteW.Open();
             buffer = ConsoleWriteW.GetParameter(0);
             count = ConsoleWriteW.GetParameter(1);
-            ConsoleWriteW.Call(conout, buffer, count.Cast(DWORD), compiler.NULLPTR, compiler.NULLPTR);
+            WriteConsoleW.Call(conout, buffer, count.Cast(DWORD), compiler.NULLPTR, compiler.NULLPTR);
 
             return this;
         }
@@ -201,12 +201,12 @@ namespace CompileLib.EmbeddedLanguage
 
             var nullchar = compiler.MakeConst(0U).Cast(WCHAR);
             totalCount.Value -= 1U;
-            result[pTotalCount].Value = nullchar;
+            result[totalCount].Value = nullchar;
             var next = compiler.DefineLabel();
             compiler.GotoIf(!totalCount, next);
             compiler.GotoIf(result[totalCount - 1U] != (uint)'\r', next);
             totalCount.Value -= 1U;
-            result[pTotalCount].Value = nullchar;
+            result[totalCount].Value = nullchar;
             compiler.MarkLabel(next);
 
             compiler.Return(result);

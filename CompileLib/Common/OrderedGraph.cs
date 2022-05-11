@@ -17,6 +17,12 @@ namespace CompileLib.Common
             this.n = n;
             g = new List<int>[n];
             rg = new List<int>[n];
+
+            for(int i = 0; i < n; i++)
+            {
+                g[i] = new();
+                rg[i] = new();
+            }
         }
 
         public void AddEdge(int x, int y)
@@ -79,6 +85,12 @@ namespace CompileLib.Common
             // condensation of g and rg
             var cg = new List<int>[compCount];
             var crg = new List<int>[compCount];
+            for(int i = 0; i < compCount; i++)
+            {
+                cg[i] = new();
+                crg[i] = new();
+            }
+
             for(int x = 0; x < n; x++)
             {
                 foreach (int y in g[x])
@@ -112,7 +124,7 @@ namespace CompileLib.Common
                             dfsStack.Push(y);
                             break;
                         }
-                        if (progress[x] == g[x].Count)
+                        if (progress[x] == cg[x].Count)
                         {
                             dfsStack.Pop();
                             foreach (int y in cg[x])

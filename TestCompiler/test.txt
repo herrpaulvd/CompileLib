@@ -1,6 +1,5 @@
-﻿string s;
-read s;
-string t;
-read t;
-write s + t;
+﻿string s = "x";
+readln s;
+string t = "y";
+writeln t + s + t;
 

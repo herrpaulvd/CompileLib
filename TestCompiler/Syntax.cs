@@ -48,7 +48,7 @@ namespace TestCompiler
                 this.statements = statements;
             }
 
-            public void Compile()
+            public void Compile(string filename)
             {
                 var compiler = new ELCompilerBuilder()
                     .AddMemoryFunctions(out ELFunction malloc, out ELFunction realloc, out ELFunction free, true, true)
@@ -75,7 +75,7 @@ namespace TestCompiler
                 var blen = b.FieldRef(FIELD_LENGTH);
                 var length =  alen + blen;
                 result.FieldRef(FIELD_LENGTH).Value = length;
-                var s = malloc.Call((length + 1U) * (uint)TChar.Size);
+                var s = malloc.Call((length + 1U) * (uint)TChar.Size).Cast(PChar);
                 memcpy.Call(s, a.FieldRef(FIELD_CHARS), alen);
                 memcpy.Call(s + alen, b.FieldRef(FIELD_CHARS), blen);
                 result.FieldRef(FIELD_CHARS).Value = s;
@@ -85,8 +85,8 @@ namespace TestCompiler
                 var readline = compiler.CreateFunction(ELType.Void, PString);
                 scope.AddHiddenObject("readln", readline);
                 readline.Open();
-                result = strconcat.GetParameter(0).PtrToRef();
-                result.FieldRef(FIELD_CHARS).Value = ConsoleReadLineW.Call(result.FieldRef(FIELD_LENGTH));
+                result = readline.GetParameter(0).PtrToRef();
+                result.FieldRef(FIELD_CHARS).Value = ConsoleReadLineW.Call(result.FieldRef(FIELD_LENGTH).Address);
                 compiler.Return();
 
                 // write function
@@ -103,11 +103,14 @@ namespace TestCompiler
                 var suffix = compiler.AddLocalVariable(TString);
                 suffix.FieldRef(FIELD_CHARS).Value = nl;
                 suffix.FieldRef(FIELD_LENGTH).Value = compiler.MakeConst((uint)nlstr.Length);
-                write.Call(strconcat.Call(writeln.GetParameter(0), suffix.Address));
+                var output = compiler.AddLocalVariable(TString).Address;
+                strconcat.Call(writeln.GetParameter(0), suffix.Address, output);
+                write.Call(output);
 
                 compiler.OpenEntryPoint();
                 foreach (var statement in statements)
                     statement.Compile(scope, compiler);
+                compiler.BuildAndSave(filename);
             }
         }
 
@@ -304,7 +307,8 @@ namespace TestCompiler
         [SetTag("statement")]
         public static Statement ReadReadStatement(
             [Keywords("readln")] string operation,
-            [RequireTags("expression.L")] Expression operand
+            [RequireTags("expression.L")] Expression operand,
+            [Keywords(";")] string semicolon
             )
         {
             return new IOStatement(operation, operand);
@@ -313,7 +317,8 @@ namespace TestCompiler
         [SetTag("statement")]
         public static Statement ReadWriteStatement(
             [Keywords("writeln", "write")] string operation,
-            [RequireTags("expression")] Expression operand
+            [RequireTags("expression")] Expression operand,
+            [Keywords(";")] string semicolon
             )
         {
             return new IOStatement(operation, operand);

@@ -28,7 +28,7 @@ try
     }
     
 
-    program.Compile();
+    program.Compile("result.exe");
     // TODO: run compiler.Build() method
 }
 catch(Exception ex)

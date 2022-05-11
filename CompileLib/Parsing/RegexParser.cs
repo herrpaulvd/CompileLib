@@ -114,11 +114,12 @@ namespace CompileLib.Parsing
                 [Keywords("]")] string brClose
                 )
             {
-                return (brMember is null ? items : items.Prepend(c => c == ']')).Select(
+                if (brMember is null) items = items.Prepend(c => c == ']').ToArray();
+
+                return SmartFSMBuilder.CreateBySinglePredicate(
                     circumflex is null
-                    ? new Func<Predicate<char>, SmartFSMBuilder>(SmartFSMBuilder.CreateBySinglePredicate)
-                    : new Func<Predicate<char>, SmartFSMBuilder>(p => SmartFSMBuilder.CreateBySinglePredicate(c => !p(c))))
-                    .Aggregate(SmartFSMBuilder.CreateUnion);
+                    ? new Predicate<char>(c => items.Any(p => p(c)))
+                    : new Predicate<char>(c => items.All(p => !p(c))));
             }
 
             [SetTag("bracket-expr-item-simple")]

@@ -31,7 +31,7 @@ namespace CompileLib.EmbeddedLanguage
 
         public override bool IsAssignableTo(ELType type)
         {
-            return type == baseType || type == PVoid;
+            return type == this || type == PVoid;
         }
 
         public override string ToString()

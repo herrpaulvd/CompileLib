@@ -36,7 +36,7 @@ namespace CompileLib.EmbeddedLanguage
             => AddExpression(expression, currentContext);
 
         private ELVariable AddVariable(ELType type, int context)
-            => (ELVariable)AddExpression(new ELVariable(this, type));
+            => (ELVariable)AddExpression(new ELVariable(this, type), context);
 
         public ELVariable AddGlobalVariable(ELType type) => AddVariable(type, globalContext);
         public ELVariable AddLocalVariable(ELType type) => AddVariable(type, currentContext);
@@ -124,7 +124,7 @@ namespace CompileLib.EmbeddedLanguage
         {
             get
             {
-                return nullptr ??= MakeConst(0).Cast(ELType.PVoid);
+                return (nullptr ??= MakeConst(0)).Cast(ELType.PVoid);
             }
         }
 
@@ -247,7 +247,8 @@ namespace CompileLib.EmbeddedLanguage
                 }
                 else
                 {
-                    var f = asmf[id];
+                    var f = asmf[context];
+                    if (f is null) continue;
                     expr2ip[id] = f.GetIP();
 
                     if (e is ELVariable variable)
@@ -272,7 +273,7 @@ namespace CompileLib.EmbeddedLanguage
                             res,
                             expr2operand[fieldRef.Operand.ID],
                             offset);
-                        expr2operand[fieldRef.Operand.ID] = Dereference(res, f);
+                        expr2operand[e.ID] = Dereference(res, f);
                     }
                     else if (e is ELIntegerConst intconst)
                     {
@@ -419,7 +420,7 @@ namespace CompileLib.EmbeddedLanguage
 
             usedLabels.Sort();
             usedLabels.Reverse();
-            int[] currIP = Array.ConvertAll(asmf, f => f.GetIP());
+            int[] currIP = Array.ConvertAll(asmf, f => f?.GetIP() ?? 0);
             int currExpr = exprCount;
             foreach(var (address, id, context) in usedLabels)
             {
@@ -432,7 +433,7 @@ namespace CompileLib.EmbeddedLanguage
                 assembler.ReplaceConst(label2operand[id], currIP[context]);
             }
 
-            assembler.BuildAndSave(filename, asmf.Where(f => f is not null));
+            assembler.BuildAndSave(filename, asmf.Where(f => f is not null).ToArray());
         }
     }
 }
