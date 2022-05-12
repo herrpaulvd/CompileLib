@@ -76,8 +76,8 @@ namespace TestCompiler
                 var length =  alen + blen;
                 result.FieldRef(FIELD_LENGTH).Value = length;
                 var s = malloc.Call((length + 1U) * (uint)TChar.Size).Cast(PChar);
-                memcpy.Call(s, a.FieldRef(FIELD_CHARS), alen);
-                memcpy.Call(s + alen, b.FieldRef(FIELD_CHARS), blen);
+                memcpy.Call(s, a.FieldRef(FIELD_CHARS), alen * (uint)TChar.Size);
+                memcpy.Call(s + alen, b.FieldRef(FIELD_CHARS), blen * (uint)TChar.Size);
                 result.FieldRef(FIELD_CHARS).Value = s;
                 compiler.Return();
 

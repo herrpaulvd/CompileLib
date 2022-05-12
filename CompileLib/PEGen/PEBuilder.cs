@@ -139,7 +139,7 @@ namespace CompileLib.PEGen
                 idataSection.SetPointer(secptr);
 
                 for (int j = 0; j < funcs.Length; j++)
-                    dllDict[funcs[j]] = importDescriptors[i].FirstThunk + (ulong)j;
+                    dllDict[funcs[j]] = importDescriptors[i].FirstThunk + (ulong)(j * sizeof(ulong));
             }
 
             idataSection.SetPointer(0);
@@ -221,7 +221,7 @@ namespace CompileLib.PEGen
                 (uint)fileAlign,
                 (uint)imageSize,
                 (uint)headerSection.FileSize,
-                0x02);
+                0x03);
             optionalHeader.DataDirectory[1] = new IMAGE_DATA_DIRECTORY((uint)idataRVA, (uint)idataSection.VirtualSize);
             var ntHeaders = new IMAGE_NT_HEADERS(fileHeader, optionalHeader);
 

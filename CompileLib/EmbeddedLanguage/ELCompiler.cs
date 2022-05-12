@@ -244,6 +244,10 @@ namespace CompileLib.EmbeddedLanguage
                     {
                         expr2operand[id] = assembler.AddInitData(d.Values, d.Type);
                     }
+                    else if(e is ELIntegerConst c)
+                    {
+                        expr2operand[e.ID] = assembler.AddConst(c.SignedValue, t is ELAtomType a0 && a0.Signed, t.Size, t);
+                    }
                 }
                 else
                 {
@@ -271,13 +275,9 @@ namespace CompileLib.EmbeddedLanguage
                         f.AddOperation(
                             Assembler.ADD,
                             res,
-                            expr2operand[fieldRef.Operand.ID],
+                            MakeReference(expr2operand[fieldRef.Operand.ID]),
                             offset);
                         expr2operand[e.ID] = Dereference(res, f);
-                    }
-                    else if (e is ELIntegerConst intconst)
-                    {
-                        expr2operand[e.ID] = assembler.AddConst(intconst.SignedValue, t is ELAtomType a0 && a0.Signed, t.Size, t);
                     }
                     else if (e is ELReturn ret)
                     {
@@ -371,14 +371,15 @@ namespace CompileLib.EmbeddedLanguage
                             expr2operand[e.ID] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
                             if(binary.Left.Type is ELPointerType pt)
                             {
+                                var baseType = pt.BaseType;
                                 AsmOperand right;
-                                if(pt.Size == 1)
+                                if(baseType.Size == 1)
                                 {
                                     right = expr2operand[binary.Right.ID];
                                 }
                                 else
                                 {
-                                    var sizeconst = assembler.AddConst(pt.Size, false, PtrSize, ELType.UInt64);
+                                    var sizeconst = assembler.AddConst(baseType.Size, false, PtrSize, ELType.UInt64);
                                     right = f.AddLocal(false, false, PtrSize, ELType.UInt64);
                                     f.AddOperation(
                                         Assembler.MUL,

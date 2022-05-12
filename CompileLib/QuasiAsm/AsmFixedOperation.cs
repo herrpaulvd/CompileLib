@@ -9,10 +9,12 @@ namespace CompileLib.QuasiAsm
     internal class AsmFixedOperation : IAsmOperationType
     {
         public AsmSenderRequired SenderRequired { get; private set; }
+        public string Name; // DEBUG ONLY
 
-        public AsmFixedOperation(AsmSenderRequired senderRequired)
+        public AsmFixedOperation(AsmSenderRequired senderRequired, string name)
         {
             SenderRequired = senderRequired;
+            Name = name;
         }
     }
 }

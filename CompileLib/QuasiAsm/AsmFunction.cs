@@ -294,7 +294,7 @@ namespace CompileLib.QuasiAsm
                 void writeMOVSXDprefix(byte REX, AsmOperand operand)
                 {
                     if (!operand.IsSigned())
-                        REX ^= REXW;
+                        REX = (byte)((REX ^ REXW) | REXEMPTY);
                     if (REX != REXEMPTY)
                         writeb(REX);
                 }
@@ -737,7 +737,7 @@ namespace CompileLib.QuasiAsm
                             );
                         if (n > 4 && n % 2 == 1)
                             writearr(0x48, 0x83, 0xEC, 0x08); // sub RSP, 8
-                        for(int i = n - 1; i > 4; i--)
+                        for(int i = n - 1; i >= 4; i--)
                         {
                             movRV(args[i], ID_RAX);
                             writeb(0x50); // PUSH RAX

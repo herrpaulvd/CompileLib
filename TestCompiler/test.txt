@@ -1,5 +1,8 @@
 ﻿string s = "x";
 readln s;
 string t = "y";
+readln t;
 writeln t + s + t;
+write t;
+writeln s;
 

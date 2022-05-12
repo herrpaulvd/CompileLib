@@ -76,7 +76,7 @@ namespace CompileLib.EmbeddedLanguage
                 return this;
             }
 
-            this.memcpy = memcpy = compiler.ImportFunction("kernel32.dll", "CopyMemory", ELType.Void, LPVOID, LPVOID, SIZE);
+            this.memcpy = memcpy = compiler.ImportFunction("ntdll.dll", "RtlCopyMemory", ELType.Void, LPVOID, LPVOID, SIZE);
             return this;
         }
 
@@ -92,7 +92,7 @@ namespace CompileLib.EmbeddedLanguage
                 return this;
             }
 
-            this.memmove = memmove = compiler.ImportFunction("kernel32.dll", "MoveMemory", ELType.Void, LPVOID, LPVOID, SIZE);
+            this.memmove = memmove = compiler.ImportFunction("ntdll.dll", "RtlMoveMemory", ELType.Void, LPVOID, LPVOID, SIZE);
             return this;
         }
 

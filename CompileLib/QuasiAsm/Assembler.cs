@@ -12,18 +12,18 @@ namespace CompileLib.QuasiAsm
     {
         public const int PtrSize = 8;
 
-        public static readonly AsmFixedOperation RET = new(AsmSenderRequired.None);
-        public static readonly AsmFixedOperation GOTO = new(AsmSenderRequired.Single); // label
-        public static readonly AsmFixedOperation RETVAL = new(AsmSenderRequired.Single);
-        public static readonly AsmFixedOperation MOV = new(AsmSenderRequired.Single);
-        public static readonly AsmFixedOperation BOOLEAN_NOT = new(AsmSenderRequired.Single);
-        public static readonly AsmFixedOperation BITWISE_NOT = new(AsmSenderRequired.Single);
-        public static readonly AsmFixedOperation NEG = new(AsmSenderRequired.Single);
-        public static readonly AsmFixedOperation ADD = new(AsmSenderRequired.Pair);
-        public static readonly AsmFixedOperation SUB = new(AsmSenderRequired.Pair);
-        public static readonly AsmFixedOperation MUL = new(AsmSenderRequired.Pair);
-        public static readonly AsmFixedOperation DIV = new(AsmSenderRequired.Pair);
-        public static readonly AsmFixedOperation GOTOIF = new(AsmSenderRequired.Pair); // condition + label
+        public static readonly AsmFixedOperation RET = new(AsmSenderRequired.None, "RET");
+        public static readonly AsmFixedOperation GOTO = new(AsmSenderRequired.Single, "GOTO"); // label
+        public static readonly AsmFixedOperation RETVAL = new(AsmSenderRequired.Single, "RETVAL");
+        public static readonly AsmFixedOperation MOV = new(AsmSenderRequired.Single, "MOV");
+        public static readonly AsmFixedOperation BOOLEAN_NOT = new(AsmSenderRequired.Single, "BOOLNOT");
+        public static readonly AsmFixedOperation BITWISE_NOT = new(AsmSenderRequired.Single, "BITWNOT");
+        public static readonly AsmFixedOperation NEG = new(AsmSenderRequired.Single, "NEG");
+        public static readonly AsmFixedOperation ADD = new(AsmSenderRequired.Pair, "ADD");
+        public static readonly AsmFixedOperation SUB = new(AsmSenderRequired.Pair, "SUB");
+        public static readonly AsmFixedOperation MUL = new(AsmSenderRequired.Pair, "MUL");
+        public static readonly AsmFixedOperation DIV = new(AsmSenderRequired.Pair, "DIV");
+        public static readonly AsmFixedOperation GOTOIF = new(AsmSenderRequired.Pair, "GOTOIF"); // condition + label
         // label is const AsmOperand, is the number to where go
 
         private List<AsmOperand> globals = new();
@@ -33,7 +33,7 @@ namespace CompileLib.QuasiAsm
         public AsmOperand AddGlobal(bool struc, bool signed, int size, object tag)
         {
             int id = globals.Count;
-            AsmOperand result = new(AsmOperandType.Param, AsmOperandUse.Val, struc, signed, id, size, tag);
+            AsmOperand result = new(AsmOperandType.GlobalVar, AsmOperandUse.Val, struc, signed, id, size, tag);
             globals.Add(result);
             return result;
         }
@@ -42,7 +42,7 @@ namespace CompileLib.QuasiAsm
         {
             int id = consts.Count;
             consts.Add(value);
-            return new(AsmOperandType.Param, AsmOperandUse.Val, false, signed, id, size, tag);
+            return new(AsmOperandType.Const, AsmOperandUse.Val, false, signed, id, size, tag);
         }
 
         public void ReplaceConst(AsmOperand operand, long value)

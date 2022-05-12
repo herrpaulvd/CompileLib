@@ -3,6 +3,13 @@ using CompileLib.Parsing;
 
 ParsingEngine engine;
 
+/*
+ * TODO
+ * remove setting for non-usable variables
+ * 
+ * 
+ */
+
 try
 {
     engine = new ParsingEngineBuilder()
