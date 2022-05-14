@@ -1,15 +1,12 @@
 ﻿using TestCompiler;
 using CompileLib.Parsing;
 
+Console.WriteLine(Resources.searchrules);
+
 ParsingEngine engine;
 
-/*
- * TODO
- * remove setting for non-usable variables
- * 
- * 
- */
-
+// TODO???: op-priorities
+// TODO: write the whole syntax
 try
 {
     engine = new ParsingEngineBuilder()
@@ -27,19 +24,18 @@ catch(Exception ex)
 
 try
 {
-    var program = engine.ParseFile<Syntax.Program>("test.txt");
+    var program = engine.ParseFile<object>("test.txt");
     if(program is null)
     {
         Console.WriteLine("Compilation falied");
         return;
     }
-    
 
-    program.Compile("result.exe");
-    // TODO: run compiler.Build() method
+    //program.Compile("result.exe");
 }
 catch(Exception ex)
 {
     Console.WriteLine(ex);
+    return;
 }
 

@@ -9,7 +9,6 @@ using CompileLib.LexerTools;
 
 namespace CompileLib.Parsing
 {
-    // MAYBE TODO))) Priority-switch[?], rather-carry[DONE]
     internal class RegexParser
     {
         private class Expr

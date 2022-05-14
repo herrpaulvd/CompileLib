@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace CompileLib.Common
 {
@@ -10,29 +11,26 @@ namespace CompileLib.Common
     {
         private int n;
         private List<int>[] g;
-        private List<int>[] rg;
 
         public OrderedGraph(int n)
         {
             this.n = n;
             g = new List<int>[n];
-            rg = new List<int>[n];
-
             for(int i = 0; i < n; i++)
-            {
                 g[i] = new();
-                rg[i] = new();
-            }
         }
 
         public void AddEdge(int x, int y)
         {
             g[x].Add(y);
-            rg[y].Add(x);
         }
 
         public void GetMinMaxArrays(out int[] min, out int[] max)
         {
+            List<int>[] rg = new List<int>[n];
+            for (int i = 0; i < n; i++) rg[i] = new();
+            for (int i = 0; i < n; i++) foreach(int j in g[i]) rg[j].Add(i);
+
             // topological sort
             bool[] used = new bool[n];
             int[] progress = new int[n];
@@ -140,6 +138,25 @@ namespace CompileLib.Common
             }
             min = BuildAgg(g, cg, Math.Min, n);
             max = BuildAgg(rg, crg, Math.Max, -1);
+        }
+
+        public void FindReachable(bool[] used)
+        {
+            Queue<int> q = new();
+            for(int i = 0; i < n; i++)
+                if(used[i])
+                    q.Enqueue(i);
+
+            while(q.Count > 0)
+            {
+                int x = q.Dequeue();
+                foreach(int y in g[x])
+                    if(!used[y])
+                    {
+                        used[y] = true;
+                        q.Enqueue(y);
+                    }
+            }
         }
     }
 }
