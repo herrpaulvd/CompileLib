@@ -100,6 +100,7 @@ namespace CompileLib.Semantics
             [TogetherWith][RequireTags("call-args")] List<string> tail
             )
         {
+            if(param.StartsWith('"')) param = param[1..^1];
             if (separator is null) return new List<string> { param };
             tail.Add(param);
             return tail;
@@ -170,8 +171,8 @@ namespace CompileLib.Semantics
         }
 
         private readonly ParsingEngine SLParsingEngine = new ParsingEngineBuilder()
-            .AddToken("atom", "[[:alnum:]_-]+")
-            .AddToken("var", "@[[:alnum:]_-]+")
+            .AddToken("atom", @"[[:alnum:]_-]+|""[^""[:cntrl:]]*""")
+            .AddToken("var", @"@[[:alnum:]_-]+")
             .AddToken(SpecialTags.TAG_SKIP, "[[:space:]]")
             .AddProductions<SearchLanguageParser>()
             .Create("program");

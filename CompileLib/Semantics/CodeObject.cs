@@ -56,6 +56,20 @@ namespace CompileLib.Semantics
             return attributes[name];
         }
 
+        public CodeObject? GetOneRelated(string relation)
+        {
+            if (byRelation.ContainsKey(relation))
+                return byRelation[relation][0];
+            return null;
+        }
+
+        public CodeObject[] GetAllRelated(string relation)
+        {
+            if (byRelation.ContainsKey(relation))
+                return byRelation[relation].ToArray();
+            return Array.Empty<CodeObject>();
+        }
+
         private void GetByPredicate(Func<SearchResult, bool> predicate, List<SearchResult> result)
         {
             result.AddRange(byName.Values.SelectMany(v => v).Where(predicate));
