@@ -4,16 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-using CompileLib.Semantics;
-
 namespace TestCompiler.CodeObjects
 {
-    internal class BlockStatement : CodeObject
+    internal class BlockStatement : Statement
     {
-        public CodeObject[] Statements { get; private set; }
+        public Statement[] Statements { get; private set; }
 
-        public BlockStatement(string name, string type, int line, int column, CodeObject[] statements) 
-            : base(name, type, line, column)
+        public BlockStatement(int line, int column, Statement[] statements) 
+            : base(line, column)
         {
             Statements = statements;
         }

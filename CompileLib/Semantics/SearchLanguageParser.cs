@@ -174,6 +174,7 @@ namespace CompileLib.Semantics
             .AddToken("atom", @"[[:alnum:]_-]+|""[^""[:cntrl:]]*""")
             .AddToken("var", @"@[[:alnum:]_-]+")
             .AddToken(SpecialTags.TAG_SKIP, "[[:space:]]")
+            .AddToken(SpecialTags.TAG_SKIP, @"#.*\n")
             .AddProductions<SearchLanguageParser>()
             .Create("program");
 

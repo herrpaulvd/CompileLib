@@ -16,7 +16,7 @@ namespace TestCompiler
     {
         [SetTag("global")]
         public static CodeObject ReadGlobal(
-            [Many(true)][RequireTags("namespace", "class")] CodeObject[] components
+            [Many(true)][RequireTags("class")] CodeObject[] components
             )
         {
             CodeObject global = new("global", "global", 1, 1);
@@ -29,49 +29,27 @@ namespace TestCompiler
             return global;
         }
 
-        [SetTag("namespace")]
-        public static CodeObject ReadNamespace(
-            [Keywords("namespace")] Token kw,
-            [RequireTags("id")] string id,
-            [Keywords("{")] string brOpen,
-            [Many(true)][RequireTags("namespace", "class")] CodeObject[] components,
-            [Keywords("}")] string brClose
-            )
-        {
-            CodeObject nmspc = new(id, "namespace", kw.Line, kw.Column);
-            foreach (var component in components)
-            {
-                component.AddRelation("parent", nmspc);
-                nmspc.AddRelation("child", component);
-            }
-
-            return nmspc;
-        }
-
         [SetTag("class")]
         public static CodeObject ReadClass(
             [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
             [Keywords("class")] Token kw,
             [RequireTags("id")] string id,
+            [Optional(false)][Keywords("(")] string brParamOpen,
+            [TogetherWith][RequireTags("call-args")] List<Expression> parameters,
+            [TogetherWith][Keywords(")")] string brParamClose,
             [Optional(false)][Keywords(":")] string inherited,
-            [TogetherWith][RequireTags("expr")] CodeObject baseClass,
+            [TogetherWith][RequireTags("expr")] Expression baseClass,
             [Keywords("{")] string brOpen,
             [Many(true)][RequireTags("class", "method", "field", "constructor")] CodeObject[] components,
             [Keywords("}")] string brClose
             )
         {
             var firstToken = visMod ?? kw;
-            CodeObject clss = new(id, "class", firstToken.Line, firstToken.Column);
-            if(visMod is not null)
-                clss.AddAttribute(visMod.Self);
-            if (baseClass is not null)
-                clss.AddRelation("base-class", baseClass);
-            foreach(var component in components)
-            {
-                component.AddRelation("parent", clss);
-                clss.AddRelation("child", component);
-            }
-            return clss;
+            Expression[] paramArray;
+            if(parameters is null) paramArray = Array.Empty<Expression>();
+            else paramArray = parameters.ToArray();
+
+            return new Class(id, firstToken.Line, firstToken.Column, baseClass, visMod?.Self, paramArray, components);
         }
 
         [SetTag("visibility-mod")]
@@ -86,59 +64,43 @@ namespace TestCompiler
         public static CodeObject ReadField(
             [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
             [Optional(false)][Keywords("static")] Token? kwStatic,
-            [RequireTags("expr")] CodeObject type,
+            [RequireTags("expr")] Expression type,
             [RequireTags("id")] string id,
             [Optional(false)][Keywords("=")] string eq,
-            [TogetherWith][RequireTags("expr")] CodeObject expr,
+            [TogetherWith][RequireTags("expr")] Expression expr,
             [Keywords(";")] string close
             )
         {
             var firstToken = visMod ?? kwStatic;
-            CodeObject field = new(id, "field", firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column);
-            if(visMod is not null)
-                field.AddAttribute(visMod.Self);
-            if (kwStatic is not null)
-                field.AddAttribute(kwStatic.Self);
-            field.AddRelation("type-expr", type);
-            if(expr is not null)
-                field.AddRelation("init-expr", expr);
-            return field;
+            return new Field(id, firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, visMod?.Self, kwStatic?.Self, type, expr);
         }
 
         [SetTag("method")]
         public static CodeObject ReadMethod(
             [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
             [Optional(false)][Keywords("static")] Token? kwStatic,
-            [RequireTags("expr")] CodeObject type,
+            [RequireTags("expr")] Expression type,
             [RequireTags("id")] string id,
             [Keywords("(")] string brOpen,
-            [Optional(false)][RequireTags("method.params")] List<CodeObject> parameters,
+            [Optional(false)][RequireTags("method.params")] List<Parameter> parameters,
             [Keywords(")")] string brClose,
-            [RequireTags("statement")] CodeObject statement
+            [RequireTags("statement")] Statement statement
             )
         {
             var firstToken = visMod ?? kwStatic;
             parameters.Reverse();
-            CodeObject method = new Method(id, "method", firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, parameters.ToArray());
-            if (visMod is not null)
-                method.AddAttribute(visMod.Self);
-            if (kwStatic is not null)
-                method.AddAttribute(kwStatic.Self);
-            method.AddRelation("type-expr", type);
-            method.AddRelation("statement", statement);
-            return method;
+            return new Method(id, firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, visMod?.Self, kwStatic?.Self, type, statement, parameters.ToArray());
         }
 
         [SetTag("method.params")]
-        public static List<CodeObject> ReadMethodParameters(
-            [RequireTags("expr")] CodeObject type,
+        public static List<Parameter> ReadMethodParameters(
+            [RequireTags("expr")] Expression type,
             [RequireTags("id")] string id,
             [Optional(false)][Keywords(",")] string separator,
-            [TogetherWith][RequireTags("method.params")] List<CodeObject> tail
+            [TogetherWith][RequireTags("method.params")] List<Parameter> tail
             )
         {
-            CodeObject parameter = new(id, "parameter", type.Line, type.Column);
-            parameter.AddRelation("type-expr", type);
+            Parameter parameter = new(id, type.Line, type.Column, type);
             tail.Add(parameter);
             return tail;
         }
@@ -147,144 +109,293 @@ namespace TestCompiler
         public static CodeObject ReadConstructor(
             [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
             [Optional(false)][Keywords("static")] Token? kwStatic,
-            [RequireTags("expr")] CodeObject type,
+            [RequireTags("expr")] Expression type,
             [Keywords("(")] string brOpen,
-            [Optional(false)][RequireTags("method.params")] List<CodeObject> parameters,
+            [Optional(false)][RequireTags("method.params")] List<Parameter> parameters,
             [Keywords(")")] string brClose,
-            [RequireTags("statement")] CodeObject statement
+            [RequireTags("statement")] Statement statement
             )
         {
             var firstToken = visMod ?? kwStatic;
             parameters.Reverse();
-            CodeObject method = new Method("", "constructor", firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, parameters.ToArray());
-            if (visMod is not null)
-                method.AddAttribute(visMod.Self);
-            if (kwStatic is not null)
-                method.AddAttribute(kwStatic.Self);
-            method.AddRelation("type-expr", type);
-            method.AddRelation("statement", statement);
-            return method;
+            return new Method("", firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, visMod?.Self, kwStatic?.Self, type, statement, parameters.ToArray());
         }
 
         [SetTag("statement")]
-        public static CodeObject ReadEmptyStatement(
-            [Keywords(";")] Token token
+        public static Statement ReadSimpleStatement(
+            [Optional(false)][RequireTags("expr")] Expression type,
+            [TogetherWith][RequireTags("id")] string id,
+            [TogetherWith][Keywords("=")] string eq,
+            [Optional(false)][RequireTags("expr")] Expression expr,
+            [Keywords(";")] Token close
             )
         {
-            return new("", "expr-statement", token.Line, token.Column);
+            LocalVariable? localVariable = null;
+            if (type is not null)
+            {
+                localVariable = new(id, type.Line, type.Column, type);
+            }
+            int line = type?.Line ?? expr?.Line ?? close.Line;
+            int column = type?.Column ?? expr?.Column ?? close.Column;
+            return new SimpleStatement(line, column, localVariable, expr);
         }
 
         [SetTag("statement")]
-        public static CodeObject ReadExprStatement(
-            [RequireTags("expr")] CodeObject expr,
-            [Keywords(";")] string close
-            )
-        {
-            CodeObject result = new("", "expr-statement", expr.Line, expr.Column);
-            result.AddRelation("expr", expr);
-            return result;
-        }
-
-        [SetTag("statement")]
-        public static CodeObject ReadVarInit(
-            [RequireTags("expr")] CodeObject type,
-            [RequireTags("id")] string id,
-            [Keywords("=")] string eq,
-            [RequireTags("expr")] CodeObject expr,
-            [Keywords(";")] string close
-            )
-        {
-            CodeObject variable = new(id, "local-var", type.Line, type.Column);
-            variable.AddRelation("type-expr", type);
-
-            CodeObject result = new("", "init-statement", type.Line, type.Column);
-            result.AddRelation("expr", expr);
-            result.AddRelation("var", variable);
-            return result;
-        }
-
-        [SetTag("statement")]
-        public static CodeObject ReadStatementBlock(
+        public static Statement ReadStatementBlock(
             [Keywords("{")] Token brOpen,
-            [Many(true)][RequireTags("statement")] CodeObject[] statements,
+            [Many(true)][RequireTags("statement")] Statement[] statements,
             [Keywords("}")] string brClose
             )
         {
-            return new BlockStatement("", "block-statement", brOpen.Line, brOpen.Column, statements);
+            return new BlockStatement(brOpen.Line, brOpen.Column, statements);
         }
 
         [SetTag("statement")]
-        public static CodeObject ReadIfStatement(
+        public static Statement ReadIfStatement(
             [Keywords("if")] Token kw,
             [Keywords("(")] string brOpen,
-            [RequireTags("expr")] CodeObject condition,
+            [RequireTags("expr")] Expression condition,
             [Keywords(")")] string brClose,
-            [RequireTags("statement")] CodeObject ifBranch,
+            [RequireTags("statement")] Statement ifBranch,
             [Optional(true)][Keywords("else")] string kwElse,
-            [TogetherWith][RequireTags("statement")] CodeObject elseBranch
+            [TogetherWith][RequireTags("statement")] Statement elseBranch
             )
         {
-            CodeObject result = new("", "if-statement", kw.Line, kw.Column);
-            result.AddRelation("condition", condition);
-            result.AddRelation("if-branch", ifBranch);
-            if (elseBranch is not null)
-                result.AddRelation("else-branch", elseBranch);
-            return result;
+            return new IfStatement(kw.Line, kw.Column, condition, ifBranch, elseBranch);
         }
 
         [SetTag("statement")]
-        public static CodeObject ReadWhileStatement(
+        public static Statement ReadWhileStatement(
             [Keywords("while")] Token kw,
             [Keywords("(")] string brOpen,
-            [RequireTags("expr")] CodeObject condition,
+            [RequireTags("expr")] Expression condition,
             [Keywords(")")] string brClose,
-            [RequireTags("statement")] CodeObject body
+            [RequireTags("statement")] Statement body
             )
         {
-            CodeObject result = new("", "while-statement", kw.Line, kw.Column);
-            result.AddRelation("condition", condition);
-            result.AddRelation("body", body);
-            return result;
+            return new WhileStatement(kw.Line, kw.Column, condition, body, false);
         }
 
         [SetTag("statement")]
-        public static CodeObject ReadDoWhileStatement(
+        public static Statement ReadDoWhileStatement(
             [Keywords("do")] Token kw,
-            [RequireTags("statement")] CodeObject body,
+            [RequireTags("statement")] Statement body,
             [Keywords("while")] string kwWhile,
             [Keywords("(")] string brOpen,
-            [RequireTags("expr")] CodeObject condition,
+            [RequireTags("expr")] Expression condition,
             [Keywords(")")] string brClose,
             [Keywords(";")] string close
             )
         {
-            CodeObject result = new("", "do-while-statement", kw.Line, kw.Column);
-            result.AddRelation("condition", condition);
-            result.AddRelation("body", body);
-            return result;
+            return new WhileStatement(kw.Line, kw.Column, condition, body, true);
         }
 
         [SetTag("statement")]
-        public static CodeObject ReadForStatement(
+        public static Statement ReadForStatement(
             [Keywords("for")] Token kw,
             [Keywords("(")] string brOpen,
-            [RequireTags("expr")] CodeObject init,
+            [RequireTags("expr")] Expression init,
             [Keywords(";")] string sep1,
-            [RequireTags("expr")] CodeObject cond,
+            [RequireTags("expr")] Expression cond,
             [Keywords(";")] string sep2,
-            [RequireTags("expr")] CodeObject next,
+            [RequireTags("expr")] Expression step,
             [Keywords(")")] string brClose,
-            [RequireTags("statement")] CodeObject body
+            [RequireTags("statement")] Statement body
             )
         {
-            CodeObject result = new("", "for-statement", kw.Line, kw.Column);
-            result.AddRelation("init", init);
-            result.AddRelation("cond", cond);
-            result.AddRelation("next", next);
-            result.AddRelation("body", body);
-            return result;
+            return new ForStatement(kw.Line, kw.Column, init, cond, step, body);
         }
 
-        // TODO: expr
+        [SetTag("call-args")]
+        public static List<Expression> ReadCallArgs(
+            [RequireTags("expr")] Expression expr,
+            [Optional(false)][Keywords(",")] string separator,
+            [TogetherWith][RequireTags("call-args")] List<Expression> tail
+            )
+        {
+            if (tail is null) return new List<Expression> { expr };
+            tail.Add(expr);
+            return tail;
+        }
+
+        [SetTag("expr-atom")]
+        public static Expression ReadExprInBrackets(
+            [Keywords("(")] Token brOpen,
+            [RequireTags("expr")] Expression expr,
+            [Keywords(")")] string brClose
+            )
+        {
+            expr.ChangePosition(brOpen.Line, brOpen.Column);
+            return expr;
+        }
+
+        [SetTag("expr-atom")]
+        public static Expression ReadID(
+            [RequireTags("id")] Token id
+            )
+        {
+            return new IdExpression(id.Self, id.Line, id.Column);
+        }
+
+        [SetTag("expr-atom")]
+        public static Expression ReadConst(
+            [RequireTags("int10", "int16", "int8", "int2", "str", "char")] Token token
+            )
+        {
+            return new ConstExpression(token.Self, token.Tag, token.Line, token.Column);
+        }
+
+        [SetTag("expr-call")]
+        public static Expression ConvertAtom2Call(
+            [RequireTags("expr-atom")] Expression expr
+            )
+        {
+            return expr;
+        }
+
+        [SetTag("expr-call")]
+        public static Expression ReadRoundCall(
+            [RequireTags("expr-call")] Expression callee,
+            [Keywords("(")] string brOpen,
+            [Optional(false)][RequireTags("call-args")] List<Expression> args,
+            [RequireTags(")")] string brClose
+            )
+        {
+            Expression[] argsArray;
+            if(args is null) argsArray = Array.Empty<Expression>();
+            else argsArray = args.ToArray();
+            return new CallExpression(callee, argsArray, brOpen, callee.Line, callee.Column);
+        }
+
+        [SetTag("expr-call")]
+        public static Expression ReadSquareCall(
+            [RequireTags("expr-call")] Expression callee,
+            [Keywords("[")] string brOpen,
+            [Optional(false)][RequireTags("call-args")] List<Expression> args,
+            [RequireTags("]")] string brClose
+            )
+        {
+            Expression[] argsArray;
+            if (args is null) argsArray = Array.Empty<Expression>();
+            else argsArray = args.ToArray();
+            return new CallExpression(callee, argsArray, brOpen, callee.Line, callee.Column);
+        }
+
+        [SetTag("expr-call")]
+        public static Expression ReadDotExpression(
+            [RequireTags("expr-call")] Expression left,
+            [Keywords(".")] string operation,
+            [RequireTags("id")] string id
+            )
+        {
+            return new DotExpression(left, id, operation, left.Line, left.Column);
+        }
+
+        [SetTag("expr-unary")]
+        public static Expression ConvertCall2Unary(
+            [RequireTags("expr-call")] Expression expr
+            )
+        {
+            return expr;
+        }
+
+        [SetTag("expr-unary")]
+        public static Expression ReadUnaryExpression(
+            [Keywords("!", "~", "-", "+", "*", "&")] Token operation,
+            [RequireTags("expr-unary")] Expression operand
+            )
+        {
+            return new UnaryExpression(operand, operation.Self, operation.Line, operation.Column);
+        }
+
+        [SetTag("expr-mul")]
+        public static Expression ConvertUnary2Mul(
+            [RequireTags("expr-unary")] Expression expr
+            )
+        {
+            return expr;
+        }
+
+        [SetTag("expr-mul")]
+        public static Expression ReadMulExpression(
+            [RequireTags("expr-mul")] Expression left,
+            [Keywords("*", "/")] Token operation,
+            [RequireTags("expr-unary")] Expression right
+            )
+        {
+            return new BinaryExpression(left, right, operation.Self, left.Line, left.Column);
+        }
+
+        [SetTag("expr-add")]
+        public static Expression ConvertMul2Add(
+            [RequireTags("expr-mul")] Expression expr
+            )
+        {
+            return expr;
+        }
+
+        [SetTag("expr-add")]
+        public static Expression ReadAddExpression(
+            [RequireTags("expr-add")] Expression left,
+            [Keywords("+", "-")] Token operation,
+            [RequireTags("expr-mul")] Expression right
+            )
+        {
+            return new BinaryExpression(left, right, operation.Self, left.Line, left.Column);
+        }
+
+        [SetTag("expr-cmp")]
+        public static Expression ConvertAdd2Cmp(
+            [RequireTags("expr-add")] Expression expr
+            )
+        {
+            return expr;
+        }
+
+        [SetTag("expr-cmp")]
+        public static Expression ReadCmpExpression(
+            [RequireTags("expr-cmp")] Expression left,
+            [Keywords("==", "!=", "<", ">", "<=", ">=")] Token operation,
+            [RequireTags("expr-add")] Expression right
+            )
+        {
+            return new BinaryExpression(left, right, operation.Self, left.Line, left.Column);
+        }
+
+        [SetTag("expr-log")]
+        public static Expression ConvertCmp2Log(
+            [RequireTags("expr-cmp")] Expression expr
+            )
+        {
+            return expr;
+        }
+
+        [SetTag("expr-log")]
+        public static Expression ReadLogExpression(
+            [RequireTags("expr-log")] Expression left,
+            [Keywords("&", "&&", "|", "||")] Token operation,
+            [RequireTags("expr-cmp")] Expression right
+            )
+        {
+            return new BinaryExpression(left, right, operation.Self, left.Line, left.Column);
+        }
+
+        [SetTag("expr")]
+        public static Expression ConvertLog2Assign(
+            [RequireTags("expr-log")] Expression expr
+            )
+        {
+            return expr;
+        }
+
+        [SetTag("expr")]
+        public static Expression ReadAssignExpression(
+            [RequireTags("expr-log")] Expression left,
+            [Keywords("=")] Token operation,
+            [RequireTags("expr")] Expression right
+            )
+        {
+            return new BinaryExpression(left, right, operation.Self, left.Line, left.Column);
+        }
     }
 }

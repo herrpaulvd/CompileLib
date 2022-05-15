@@ -8,36 +8,28 @@ using CompileLib.Semantics;
 
 namespace TestCompiler.CodeObjects
 {
-    internal class Method : CodeObject
+    internal class Field : CodeObject
     {
         public Expression TypeExpression { get; private set; }
-        public Statement MainStatement { get; private set; }
-        public Parameter[] Parameters { get; private set; }
-        public bool IsConstructor => Name.Length == 0;
+        public Expression? InitExpression { get; private set; }
 
-        public Method(
+        public Field(
             string name, 
             int line, 
             int column,
             string? visMod,
             string? statMod,
             Expression typeExpression,
-            Statement mainStatement,
-            Parameter[] parameters)
-            : base(name, name.Length == 0 ? "constructor" : "method", line, column)
+            Expression? initExpression
+            ) 
+            : base(name, "field", line, column)
         {
             TypeExpression = typeExpression;
-            MainStatement = mainStatement;
+            InitExpression = initExpression;
             if (visMod is not null)
                 AddAttribute(visMod);
             if (statMod is not null)
                 AddAttribute(statMod);
-
-            Parameters = parameters;
-            foreach(var p in Parameters)
-            {
-                AddRelation("parameter", p);
-            }
         }
     }
 }
