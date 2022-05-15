@@ -10,12 +10,14 @@ namespace CompileLib.Semantics
     {
         public SearchRule Left { get; private set; }
         public SearchRule Right { get; private set; }
+        public bool WhenEmpty { get; private set; }
 
-        public SearchRuleUnion(SearchRule left, SearchRule right)
+        public SearchRuleUnion(SearchRule left, SearchRule right, bool whenEmpty)
             : base(left.Line, left.Column)
         {
             Left = left;
             Right = right;
+            WhenEmpty = whenEmpty;
         }
 
         public override void Check(SortedSet<(string, int)> funcs, SortedSet<string> args)
@@ -27,7 +29,8 @@ namespace CompileLib.Semantics
         public override void Search(CodeObject obj, SortedDictionary<string, string> var2val, List<SearchResult> result)
         {
             Left.Search(obj, var2val, result);
-            Right.Search(obj, var2val, result);
+            if(!WhenEmpty || result.Count == 0)
+                Right.Search(obj, var2val, result);
         }
 
         public override bool Satisfies(SearchResult obj, SortedDictionary<string, string> var2val)

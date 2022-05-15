@@ -8,7 +8,7 @@ using CompileLib.Semantics;
 
 namespace TestCompiler.CodeObjects
 {
-    internal class Method : CodeObject
+    internal class Method : ClassMember
     {
         public Expression TypeExpression { get; private set; }
         public Statement MainStatement { get; private set; }
@@ -19,19 +19,15 @@ namespace TestCompiler.CodeObjects
             string name, 
             int line, 
             int column,
-            string? visMod,
-            string? statMod,
+            MemberVisibility visibility,
+            bool isStatic,
             Expression typeExpression,
             Statement mainStatement,
             Parameter[] parameters)
-            : base(name, name.Length == 0 ? "constructor" : "method", line, column)
+            : base(name, name.Length == 0 ? "constructor" : "method", line, column, visibility, isStatic)
         {
             TypeExpression = typeExpression;
             MainStatement = mainStatement;
-            if (visMod is not null)
-                AddAttribute(visMod);
-            if (statMod is not null)
-                AddAttribute(statMod);
 
             Parameters = parameters;
             foreach(var p in Parameters)

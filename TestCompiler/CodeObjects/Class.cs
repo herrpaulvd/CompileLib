@@ -8,7 +8,7 @@ using CompileLib.Semantics;
 
 namespace TestCompiler.CodeObjects
 {
-    internal class Class : CodeObject
+    internal class Class : ClassMember
     {
         public Expression? BaseClassExpr { get; private set; }
         public Expression[] Parameters { get; private set; }
@@ -19,15 +19,12 @@ namespace TestCompiler.CodeObjects
             int line,
             int column,
             Expression? baseClassExpr,
-            string? visMod,
+            MemberVisibility visibility,
             Expression[] parameters,
             CodeObject[] members) 
-            : base(name, "class", line, column)
+            : base(name, "class", line, column, visibility, true)
         {
             BaseClassExpr = baseClassExpr;
-            if(visMod is not null)
-                AddAttribute(visMod);
-
             Parameters = parameters;
             Members = members;
             foreach (var member in members)

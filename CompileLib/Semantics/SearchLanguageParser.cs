@@ -163,18 +163,18 @@ namespace CompileLib.Semantics
         [SetTag("expr")]
         public static SearchRule ReadUnion(
             [RequireTags("expr")] SearchRule left,
-            [Keywords("|")] string op,
+            [Keywords("|", "?|")] string op,
             [RequireTags("expr-C")] SearchRule right
             )
         {
-            return new SearchRuleUnion(left, right);
+            return new SearchRuleUnion(left, right, op == "?|");
         }
 
         private readonly ParsingEngine SLParsingEngine = new ParsingEngineBuilder()
             .AddToken("atom", @"[[:alnum:]_-]+|""[^""[:cntrl:]]*""")
             .AddToken("var", @"@[[:alnum:]_-]+")
             .AddToken(SpecialTags.TAG_SKIP, "[[:space:]]")
-            .AddToken(SpecialTags.TAG_SKIP, @"#.*\n")
+            .AddToken(SpecialTags.TAG_SKIP, @"#[^[:cntrl:]]*")
             .AddProductions<SearchLanguageParser>()
             .Create("program");
 

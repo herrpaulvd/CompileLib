@@ -8,7 +8,7 @@ using CompileLib.Semantics;
 
 namespace TestCompiler.CodeObjects
 {
-    internal class Field : CodeObject
+    internal class Field : ClassMember
     {
         public Expression TypeExpression { get; private set; }
         public Expression? InitExpression { get; private set; }
@@ -17,19 +17,15 @@ namespace TestCompiler.CodeObjects
             string name, 
             int line, 
             int column,
-            string? visMod,
-            string? statMod,
+            MemberVisibility visibility,
+            bool isStatic,
             Expression typeExpression,
             Expression? initExpression
             ) 
-            : base(name, "field", line, column)
+            : base(name, "field", line, column, visibility, isStatic)
         {
             TypeExpression = typeExpression;
             InitExpression = initExpression;
-            if (visMod is not null)
-                AddAttribute(visMod);
-            if (statMod is not null)
-                AddAttribute(statMod);
         }
     }
 }

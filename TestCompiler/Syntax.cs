@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 using CompileLib.Parsing;
 using CompileLib.Semantics;
-using CompileLib.EmbeddedLanguage;
 
 using TestCompiler.CodeObjects;
 
@@ -29,6 +28,16 @@ namespace TestCompiler
             return global;
         }
 
+        private static MemberVisibility Str2Visibility(string? s)
+            => s switch
+            {
+                null => MemberVisibility.Private,
+                "private" => MemberVisibility.Private,
+                "protected" => MemberVisibility.Protected,
+                "public" => MemberVisibility.Public,
+                _ => throw new NotImplementedException()
+            };
+
         [SetTag("class")]
         public static CodeObject ReadClass(
             [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
@@ -49,7 +58,7 @@ namespace TestCompiler
             if(parameters is null) paramArray = Array.Empty<Expression>();
             else paramArray = parameters.ToArray();
 
-            return new Class(id, firstToken.Line, firstToken.Column, baseClass, visMod?.Self, paramArray, components);
+            return new Class(id, firstToken.Line, firstToken.Column, baseClass, Str2Visibility(visMod?.Self), paramArray, components);
         }
 
         [SetTag("visibility-mod")]
@@ -72,7 +81,7 @@ namespace TestCompiler
             )
         {
             var firstToken = visMod ?? kwStatic;
-            return new Field(id, firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, visMod?.Self, kwStatic?.Self, type, expr);
+            return new Field(id, firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, Str2Visibility(visMod?.Self), kwStatic is not null, type, expr);
         }
 
         [SetTag("method")]
@@ -89,7 +98,7 @@ namespace TestCompiler
         {
             var firstToken = visMod ?? kwStatic;
             parameters.Reverse();
-            return new Method(id, firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, visMod?.Self, kwStatic?.Self, type, statement, parameters.ToArray());
+            return new Method(id, firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, Str2Visibility(visMod?.Self), kwStatic is not null, type, statement, parameters.ToArray());
         }
 
         [SetTag("method.params")]
@@ -118,7 +127,7 @@ namespace TestCompiler
         {
             var firstToken = visMod ?? kwStatic;
             parameters.Reverse();
-            return new Method("", firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, visMod?.Self, kwStatic?.Self, type, statement, parameters.ToArray());
+            return new Method("", firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, Str2Visibility(visMod?.Self), kwStatic is not null, type, statement, parameters.ToArray());
         }
 
         [SetTag("statement")]
