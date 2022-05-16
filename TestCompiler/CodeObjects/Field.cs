@@ -10,8 +10,9 @@ namespace TestCompiler.CodeObjects
 {
     internal class Field : ClassMember
     {
-        public Expression TypeExpression { get; private set; }
+        public TypeExpression TypeExpression { get; private set; }
         public Expression? InitExpression { get; private set; }
+        public int StrucFieldIndex { get; set; }
 
         public Field(
             string name, 
@@ -19,7 +20,7 @@ namespace TestCompiler.CodeObjects
             int column,
             MemberVisibility visibility,
             bool isStatic,
-            Expression typeExpression,
+            TypeExpression typeExpression,
             Expression? initExpression
             ) 
             : base(name, "field", line, column, visibility, isStatic)

@@ -10,9 +10,9 @@ namespace TestCompiler.CodeObjects
 {
     internal class Parameter : CodeObject
     {
-        public Expression TypeExpression { get; private set; }
+        public TypeExpression TypeExpression { get; private set; }
 
-        public Parameter(string name, int line, int column, Expression typeExpression) 
+        public Parameter(string name, int line, int column, TypeExpression typeExpression) 
             : base(name, "parameter", line, column)
         {
             TypeExpression = typeExpression;

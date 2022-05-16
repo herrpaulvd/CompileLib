@@ -10,7 +10,7 @@ namespace TestCompiler.CodeObjects
 {
     internal class Method : ClassMember
     {
-        public Expression TypeExpression { get; private set; }
+        public TypeExpression TypeExpression { get; private set; }
         public Statement MainStatement { get; private set; }
         public Parameter[] Parameters { get; private set; }
         public bool IsConstructor => Name.Length == 0;
@@ -21,7 +21,7 @@ namespace TestCompiler.CodeObjects
             int column,
             MemberVisibility visibility,
             bool isStatic,
-            Expression typeExpression,
+            TypeExpression typeExpression,
             Statement mainStatement,
             Parameter[] parameters)
             : base(name, name.Length == 0 ? "constructor" : "method", line, column, visibility, isStatic)

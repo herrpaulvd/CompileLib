@@ -14,18 +14,11 @@ namespace TestCompiler
     internal class Syntax
     {
         [SetTag("global")]
-        public static CodeObject ReadGlobal(
-            [Many(true)][RequireTags("class")] CodeObject[] components
+        public static GlobalScope ReadGlobal(
+            [Many(true)][RequireTags("class")] Class[] components
             )
         {
-            CodeObject global = new("global", "global", 1, 1);
-            foreach (var component in components)
-            {
-                component.AddRelation("parent", global);
-                global.AddRelation("child", component);
-            }
-
-            return global;
+            return new GlobalScope(components);
         }
 
         private static MemberVisibility Str2Visibility(string? s)
@@ -38,27 +31,28 @@ namespace TestCompiler
                 _ => throw new NotImplementedException()
             };
 
+        [SetTag("type-expr")]
+        public static TypeExpression ReadTypeExpression(
+            [RequireTags("id")] Token className,
+            [Many(true)][Keywords("[")] string[] brOpen,
+            [TogetherWith][Keywords("]")] string[] brClose
+            )
+        {
+            return new TypeExpression(className.Line, className.Column, className.Self, brOpen.Length);
+        }
+
         [SetTag("class")]
-        public static CodeObject ReadClass(
-            [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
+        public static Class ReadClass(
             [Keywords("class")] Token kw,
             [RequireTags("id")] string id,
-            [Optional(false)][Keywords("(")] string brParamOpen,
-            [TogetherWith][RequireTags("call-args")] List<Expression> parameters,
-            [TogetherWith][Keywords(")")] string brParamClose,
             [Optional(false)][Keywords(":")] string inherited,
-            [TogetherWith][RequireTags("expr")] Expression baseClass,
+            [TogetherWith][RequireTags("id")] string baseClass,
             [Keywords("{")] string brOpen,
-            [Many(true)][RequireTags("class", "method", "field", "constructor")] CodeObject[] components,
+            [Many(true)][RequireTags("method", "field", "constructor")] ClassMember[] components,
             [Keywords("}")] string brClose
             )
         {
-            var firstToken = visMod ?? kw;
-            Expression[] paramArray;
-            if(parameters is null) paramArray = Array.Empty<Expression>();
-            else paramArray = parameters.ToArray();
-
-            return new Class(id, firstToken.Line, firstToken.Column, baseClass, Str2Visibility(visMod?.Self), paramArray, components);
+            return new Class(id, kw.Line, kw.Column, baseClass, components);
         }
 
         [SetTag("visibility-mod")]
@@ -70,10 +64,10 @@ namespace TestCompiler
         }
 
         [SetTag("field")]
-        public static CodeObject ReadField(
+        public static ClassMember ReadField(
             [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
             [Optional(false)][Keywords("static")] Token? kwStatic,
-            [RequireTags("expr")] Expression type,
+            [RequireTags("type-expr")] TypeExpression type,
             [RequireTags("id")] string id,
             [Optional(false)][Keywords("=")] string eq,
             [TogetherWith][RequireTags("expr")] Expression expr,
@@ -85,10 +79,10 @@ namespace TestCompiler
         }
 
         [SetTag("method")]
-        public static CodeObject ReadMethod(
+        public static ClassMember ReadMethod(
             [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
             [Optional(false)][Keywords("static")] Token? kwStatic,
-            [RequireTags("expr")] Expression type,
+            [RequireTags("type-expr")] TypeExpression type,
             [RequireTags("id")] string id,
             [Keywords("(")] string brOpen,
             [Optional(false)][RequireTags("method.params")] List<Parameter> parameters,
@@ -97,13 +91,20 @@ namespace TestCompiler
             )
         {
             var firstToken = visMod ?? kwStatic;
-            parameters.Reverse();
-            return new Method(id, firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, Str2Visibility(visMod?.Self), kwStatic is not null, type, statement, parameters.ToArray());
+
+            Parameter[] paramArray;
+            if(parameters is null) paramArray = Array.Empty<Parameter>();
+            else
+            {
+                parameters.Reverse();
+                paramArray = parameters.ToArray();
+            }
+            return new Method(id, firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, Str2Visibility(visMod?.Self), kwStatic is not null, type, statement, paramArray);
         }
 
         [SetTag("method.params")]
         public static List<Parameter> ReadMethodParameters(
-            [RequireTags("expr")] Expression type,
+            [RequireTags("type-expr")] TypeExpression type,
             [RequireTags("id")] string id,
             [Optional(false)][Keywords(",")] string separator,
             [TogetherWith][RequireTags("method.params")] List<Parameter> tail
@@ -116,23 +117,27 @@ namespace TestCompiler
 
         [SetTag("constructor")]
         public static CodeObject ReadConstructor(
-            [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
             [Optional(false)][Keywords("static")] Token? kwStatic,
-            [RequireTags("expr")] Expression type,
+            [RequireTags("type-expr")] TypeExpression type,
             [Keywords("(")] string brOpen,
             [Optional(false)][RequireTags("method.params")] List<Parameter> parameters,
             [Keywords(")")] string brClose,
             [RequireTags("statement")] Statement statement
             )
         {
-            var firstToken = visMod ?? kwStatic;
-            parameters.Reverse();
-            return new Method("", firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, Str2Visibility(visMod?.Self), kwStatic is not null, type, statement, parameters.ToArray());
+            Parameter[] paramArray;
+            if (parameters is null) paramArray = Array.Empty<Parameter>();
+            else
+            {
+                parameters.Reverse();
+                paramArray = parameters.ToArray();
+            }
+            return new Method("", kwStatic?.Line ?? type.Line, kwStatic?.Column ?? type.Column, MemberVisibility.Private, kwStatic is not null, type, statement, paramArray);
         }
 
         [SetTag("statement")]
         public static Statement ReadSimpleStatement(
-            [Optional(false)][RequireTags("expr")] Expression type,
+            [Optional(false)][RequireTags("type-expr")] TypeExpression type,
             [TogetherWith][RequireTags("id")] string id,
             [TogetherWith][Keywords("=")] string eq,
             [Optional(false)][RequireTags("expr")] Expression expr,
@@ -213,6 +218,25 @@ namespace TestCompiler
             )
         {
             return new ForStatement(kw.Line, kw.Column, init, cond, step, body);
+        }
+
+        [SetTag("statement")]
+        public static Statement ReadReturn(
+            [Keywords("return")] Token kw,
+            [Optional(false)][RequireTags("expr")] Expression expr,
+            [Keywords(";")] string close
+            )
+        {
+            return new ReturnStatement(kw.Line, kw.Column, expr);
+        }
+
+        [SetTag("statement")]
+        public static Statement ReadBreakContinue(
+            [Keywords("break", "continue")] Token kw,
+            [Keywords(";")] string close
+            )
+        {
+            return new BreakContinueStatement(kw.Line, kw.Column, kw.Self == "break");
         }
 
         [SetTag("call-args")]

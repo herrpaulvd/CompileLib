@@ -10,9 +10,9 @@ namespace TestCompiler.CodeObjects
 {
     internal class LocalVariable : CodeObject
     {
-        public Expression TypeExpression { get; private set; }
+        public TypeExpression TypeExpression { get; private set; }
 
-        public LocalVariable(string name, int line, int column, Expression typeExpression) 
+        public LocalVariable(string name, int line, int column, TypeExpression typeExpression) 
             : base(name, "local-var", line, column)
         {
             TypeExpression = typeExpression;
