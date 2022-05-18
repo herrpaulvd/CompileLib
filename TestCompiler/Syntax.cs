@@ -13,6 +13,14 @@ namespace TestCompiler
 {
     internal class Syntax
     {
+        public class SignatureStart
+        {
+            public Token? visMod;
+            public Token? kwStatic;
+            public TypeExpression type;
+            public string id;
+        }
+
         [SetTag("global")]
         public static GlobalScope ReadGlobal(
             [Many(true)][RequireTags("class")] Class[] components
@@ -48,7 +56,7 @@ namespace TestCompiler
             [Optional(false)][Keywords(":")] string inherited,
             [TogetherWith][RequireTags("id")] string baseClass,
             [Keywords("{")] string brOpen,
-            [Many(true)][RequireTags("method", "field", "constructor")] ClassMember[] components,
+            [Many(true)][RequireTags("method", "field")] ClassMember[] components,
             [Keywords("}")] string brClose
             )
         {
@@ -63,34 +71,43 @@ namespace TestCompiler
             return self;
         }
 
-        [SetTag("field")]
-        public static ClassMember ReadField(
+        [SetTag("signature-start")]
+        public static SignatureStart ReadSignatureStart(
             [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
             [Optional(false)][Keywords("static")] Token? kwStatic,
             [RequireTags("type-expr")] TypeExpression type,
-            [RequireTags("id")] string id,
-            [Optional(false)][Keywords("=")] string eq,
-            [TogetherWith][RequireTags("expr")] Expression expr,
+            [RequireTags("id")] string id
+            )
+        {
+            return new SignatureStart
+            {
+                visMod = visMod,
+                kwStatic = kwStatic,
+                type = type,
+                id = id
+            };
+        }
+
+        [SetTag("field")]
+        public static ClassMember ReadField(
+            [RequireTags("signature-start")] SignatureStart s,
             [Keywords(";")] string close
             )
         {
-            var firstToken = visMod ?? kwStatic;
-            return new Field(id, firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, Str2Visibility(visMod?.Self), kwStatic is not null, type, expr);
+            var firstToken = s.visMod ?? s.kwStatic;
+            return new Field(s.id, firstToken?.Line ?? s.type.Line, firstToken?.Column ?? s.type.Column, Str2Visibility(s.visMod?.Self), s.kwStatic is not null, s.type);
         }
 
         [SetTag("method")]
         public static ClassMember ReadMethod(
-            [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
-            [Optional(false)][Keywords("static")] Token? kwStatic,
-            [RequireTags("type-expr")] TypeExpression type,
-            [RequireTags("id")] string id,
+            [RequireTags("signature-start")] SignatureStart s,
             [Keywords("(")] string brOpen,
             [Optional(false)][RequireTags("method.params")] List<Parameter> parameters,
             [Keywords(")")] string brClose,
             [RequireTags("statement")] Statement statement
             )
         {
-            var firstToken = visMod ?? kwStatic;
+            var firstToken = s.visMod ?? s.kwStatic;
 
             Parameter[] paramArray;
             if(parameters is null) paramArray = Array.Empty<Parameter>();
@@ -99,7 +116,7 @@ namespace TestCompiler
                 parameters.Reverse();
                 paramArray = parameters.ToArray();
             }
-            return new Method(id, firstToken?.Line ?? type.Line, firstToken?.Column ?? type.Column, Str2Visibility(visMod?.Self), kwStatic is not null, type, statement, paramArray);
+            return new Method(s.id, firstToken?.Line ?? s.type.Line, firstToken?.Column ?? s.type.Column, Str2Visibility(s.visMod?.Self), s.kwStatic is not null, s.type, statement, paramArray);
         }
 
         [SetTag("method.params")]
@@ -107,37 +124,19 @@ namespace TestCompiler
             [RequireTags("type-expr")] TypeExpression type,
             [RequireTags("id")] string id,
             [Optional(false)][Keywords(",")] string separator,
-            [TogetherWith][RequireTags("method.params")] List<Parameter> tail
+            [TogetherWith][RequireTags("method.params")] List<Parameter>? tail
             )
         {
             Parameter parameter = new(id, type.Line, type.Column, type);
+            if(tail is null) return new List<Parameter> { parameter };
             tail.Add(parameter);
             return tail;
         }
 
-        [SetTag("constructor")]
-        public static CodeObject ReadConstructor(
-            [Optional(false)][Keywords("static")] Token? kwStatic,
-            [RequireTags("type-expr")] TypeExpression type,
-            [Keywords("(")] string brOpen,
-            [Optional(false)][RequireTags("method.params")] List<Parameter> parameters,
-            [Keywords(")")] string brClose,
-            [RequireTags("statement")] Statement statement
-            )
-        {
-            Parameter[] paramArray;
-            if (parameters is null) paramArray = Array.Empty<Parameter>();
-            else
-            {
-                parameters.Reverse();
-                paramArray = parameters.ToArray();
-            }
-            return new Method("", kwStatic?.Line ?? type.Line, kwStatic?.Column ?? type.Column, MemberVisibility.Private, kwStatic is not null, type, statement, paramArray);
-        }
-
         [SetTag("statement")]
         public static Statement ReadSimpleStatement(
-            [Optional(false)][RequireTags("type-expr")] TypeExpression type,
+            [Optional(false)][Keywords("var")] Token kwvar,
+            [TogetherWith][RequireTags("type-expr")] TypeExpression type,
             [TogetherWith][RequireTags("id")] string id,
             [TogetherWith][Keywords("=")] string eq,
             [Optional(false)][RequireTags("expr")] Expression expr,
@@ -149,8 +148,10 @@ namespace TestCompiler
             {
                 localVariable = new(id, type.Line, type.Column, type);
             }
-            int line = type?.Line ?? expr?.Line ?? close.Line;
-            int column = type?.Column ?? expr?.Column ?? close.Column;
+
+            int line = kwvar?.Line ?? expr?.Line ?? close.Line;
+            int column = kwvar?.Column ?? expr?.Column ?? close.Column;
+
             return new SimpleStatement(line, column, localVariable, expr);
         }
 
@@ -208,11 +209,10 @@ namespace TestCompiler
         public static Statement ReadForStatement(
             [Keywords("for")] Token kw,
             [Keywords("(")] string brOpen,
-            [RequireTags("expr")] Expression init,
-            [Keywords(";")] string sep1,
+            [RequireTags("statement")] Statement init,
             [RequireTags("expr")] Expression cond,
             [Keywords(";")] string sep2,
-            [RequireTags("expr")] Expression step,
+            [RequireTags("statement")] Statement step,
             [Keywords(")")] string brClose,
             [RequireTags("statement")] Statement body
             )
@@ -263,6 +263,14 @@ namespace TestCompiler
         }
 
         [SetTag("expr-atom")]
+        public static Expression ReadNew(
+            [Keywords("new")] Token id
+            )
+        {
+            return new IdExpression(id.Self, id.Line, id.Column);
+        }
+
+        [SetTag("expr-atom")]
         public static Expression ReadID(
             [RequireTags("id")] Token id
             )
@@ -291,12 +299,16 @@ namespace TestCompiler
             [RequireTags("expr-call")] Expression callee,
             [Keywords("(")] string brOpen,
             [Optional(false)][RequireTags("call-args")] List<Expression> args,
-            [RequireTags(")")] string brClose
+            [Keywords(")")] string brClose
             )
         {
             Expression[] argsArray;
             if(args is null) argsArray = Array.Empty<Expression>();
-            else argsArray = args.ToArray();
+            else
+            {
+                args.Reverse();
+                argsArray = args.ToArray();
+            }
             return new CallExpression(callee, argsArray, brOpen, callee.Line, callee.Column);
         }
 
@@ -305,7 +317,7 @@ namespace TestCompiler
             [RequireTags("expr-call")] Expression callee,
             [Keywords("[")] string brOpen,
             [Optional(false)][RequireTags("call-args")] List<Expression> args,
-            [RequireTags("]")] string brClose
+            [Keywords("]")] string brClose
             )
         {
             Expression[] argsArray;
@@ -406,7 +418,7 @@ namespace TestCompiler
         [SetTag("expr-log")]
         public static Expression ReadLogExpression(
             [RequireTags("expr-log")] Expression left,
-            [Keywords("&", "&&", "|", "||")] Token operation,
+            [Keywords("&&", "||")] Token operation,
             [RequireTags("expr-cmp")] Expression right
             )
         {

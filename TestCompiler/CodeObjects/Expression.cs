@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using CompileLib.EmbeddedLanguage;
+
 namespace TestCompiler.CodeObjects
 {
     internal abstract class Expression
@@ -22,5 +24,10 @@ namespace TestCompiler.CodeObjects
             Line = line;
             Column = column;
         }
+
+        public abstract ELExpression CompileRight(CompilationParameters compilation);
+        public abstract ELMemoryCell CompileLeft(CompilationParameters compilation);
+        
+        public abstract TypeExpression Type { get; }
     }
 }

@@ -15,7 +15,7 @@ namespace CompileLib.Semantics
             engine = SearchLanguageParser.Instance.Parse(rulesCode);
         }
 
-        public IList<SearchResult> Search(CodeObject obj, string rule, params string[] args)
+        public List<SearchResult> Search(CodeObject obj, string rule, params string[] args)
         {
             if (!engine.FunctionExists(rule, args.Length))
                 throw new ArgumentException("Invalid rule name or args count", nameof(rule));

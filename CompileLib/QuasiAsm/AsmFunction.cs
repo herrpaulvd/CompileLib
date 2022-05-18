@@ -704,6 +704,36 @@ namespace CompileLib.QuasiAsm
                         movVR(op.Destination);
                         // TODO when creating Assembler.MOD: make movVR for RDX
                     }
+                    else if (t == Assembler.LESS)
+                    {
+                        var (a, b) = GetPair();
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RBX);
+
+                        if(a.IsSigned() != b.IsSigned()) throw new NotImplementedException();
+                        if(a.IsSigned())
+                        {
+                            writearr(
+                                0x48, 0x39, 0xD8, // cmp rax, rbx
+                                0x7C, 0x05, // jl (mov rax, 1)
+                                0x48, 0x31, 0xC0, // xor rax, rax
+                                0xEB, 0x07, // jmp after (mov rax, rax)
+                                0x48, 0xC7, 0xC0, 0x01, 0x00, 0x00, 0x00 // mov rax, 1
+                                );
+                        }
+                        else
+                        {
+                            writearr(
+                                   0x48, 0x39, 0xD8, // cmp rax, rbx
+                                   0x72, 0x05, // jb (mov rax, 1)
+                                   0x48, 0x31, 0xC0, // xor rax, rax
+                                   0xEB, 0x07, // jmp after (mov rax, rax)
+                                   0x48, 0xC7, 0xC0, 0x01, 0x00, 0x00, 0x00 // mov rax, 1
+                                   );
+                        }
+
+                        movVR(op.Destination);
+                    }
                     else if (t == Assembler.GOTOIF)
                     {
                         var (a, b) = GetPair();

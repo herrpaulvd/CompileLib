@@ -2,9 +2,8 @@
 using TestCompiler.CodeObjects;
 using CompileLib.Parsing;
 
-Console.WriteLine(Resources.searchrules);
-
 ParsingEngine engine;
+Console.WriteLine(Resources.searchrules);
 
 // (TODO???: op-priorities)
 // TODO: compilation using search rules!!!
@@ -18,10 +17,11 @@ try
         .AddToken("int16", @"0x[[:xdigit:]]+")
         .AddToken("int8", @"0[0-7]+")
         .AddToken("int2", @"0b[01]+")
+        .AddKeyword("this")
         .AddToken(SpecialTags.TAG_SKIP, "[[:space:]]")
         .AddToken(SpecialTags.TAG_SKIP, @"//[^[:cntrl:]]*")
-        .AddProductions<OldSyntax>()
-        .Create("program");
+        .AddProductions<Syntax>()
+        .Create("global");
 }
 catch(Exception ex)
 {
@@ -31,7 +31,7 @@ catch(Exception ex)
 
 try
 {
-    var global = engine.ParseFile<OldSyntax.Program>("test.txt");
+    var global = engine.ParseFile<GlobalScope>("test.txt");
     global?.Compile("result.exe");
 }
 catch(Exception ex)

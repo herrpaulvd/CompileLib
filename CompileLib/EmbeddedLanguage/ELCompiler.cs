@@ -407,6 +407,7 @@ namespace CompileLib.EmbeddedLanguage
                                         BinaryOperationType.SUB => Assembler.SUB,
                                         BinaryOperationType.MUL => Assembler.MUL,
                                         BinaryOperationType.DIV => Assembler.DIV,
+                                        BinaryOperationType.LESS => Assembler.LESS,
                                         _ => throw new NotImplementedException()
                                     },
                                     expr2operand[e.ID],

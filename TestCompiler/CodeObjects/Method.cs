@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using CompileLib.Semantics;
+using CompileLib.EmbeddedLanguage;
 
 namespace TestCompiler.CodeObjects
 {
@@ -13,7 +14,7 @@ namespace TestCompiler.CodeObjects
         public TypeExpression TypeExpression { get; private set; }
         public Statement MainStatement { get; private set; }
         public Parameter[] Parameters { get; private set; }
-        public bool IsConstructor => Name.Length == 0;
+        public ELFunction Compiled { get; set; }
 
         public Method(
             string name, 
@@ -24,7 +25,7 @@ namespace TestCompiler.CodeObjects
             TypeExpression typeExpression,
             Statement mainStatement,
             Parameter[] parameters)
-            : base(name, name.Length == 0 ? "constructor" : "method", line, column, visibility, isStatic)
+            : base(name, "method", line, column, visibility, isStatic)
         {
             TypeExpression = typeExpression;
             MainStatement = mainStatement;

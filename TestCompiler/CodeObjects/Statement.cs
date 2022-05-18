@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using CompileLib.Semantics;
+using CompileLib.EmbeddedLanguage;
+
 namespace TestCompiler.CodeObjects
 {
     internal abstract class Statement
@@ -16,5 +19,7 @@ namespace TestCompiler.CodeObjects
             Line = line;
             Column = column;
         }
+
+        public abstract void Compile(CompilationParameters compilation);
     }
 }

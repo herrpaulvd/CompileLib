@@ -27,7 +27,7 @@ namespace CompileLib.Semantics
                     if (Args[i][0] == '@' && !args.Contains(Args[i]))
                         throw new SearchLangParsingException($"Argument {Args[i]} does not exist", Line, Column);
             }
-            else throw new SearchLangParsingException($"Function {Function} with {Args.Length} does not exist", Line, Column);
+            else throw new SearchLangParsingException($"Function {Function} with {Args.Length} arguments does not exist", Line, Column);
         }
 
         public override void SetEngine(SearchEngine engine)

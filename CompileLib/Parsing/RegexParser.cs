@@ -113,7 +113,7 @@ namespace CompileLib.Parsing
                 [Keywords("]")] string brClose
                 )
             {
-                if (brMember is null) items = items.Prepend(c => c == ']').ToArray();
+                if (brMember is not null) items = items.Prepend(c => c == ']').ToArray();
 
                 return SmartFSMBuilder.CreateBySinglePredicate(
                     circumflex is null

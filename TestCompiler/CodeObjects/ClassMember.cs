@@ -33,13 +33,13 @@ namespace TestCompiler.CodeObjects
             Visibility = visibility;
             IsStatic = isStatic;
 
-            if (visibility <= MemberVisibility.Private)
+            if (visibility >= MemberVisibility.Private)
             {
                 AddAttribute("private");
-                if(visibility <= MemberVisibility.Protected)
+                if(visibility >= MemberVisibility.Protected)
                 {
                     AddAttribute("protected");
-                    if (visibility <= MemberVisibility.Public)
+                    if (visibility >= MemberVisibility.Public)
                         AddAttribute("public");
                 }
             }

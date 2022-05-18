@@ -158,6 +158,90 @@ namespace CompileLib.EmbeddedLanguage
         public static ELExpression operator !=(uint left, ELExpression right)
             => right.compiler.MakeConst(left) != right;
 
+        public static ELExpression operator <(ELExpression left, ELExpression right)
+        {
+            return CreateBinary(BinaryOperationType.LESS, left, right);
+        }
+        public static ELExpression operator <(ELExpression left, long right)
+            => left < left.compiler.MakeConst(right);
+        public static ELExpression operator <(long left, ELExpression right)
+            => right.compiler.MakeConst(left) < right;
+        public static ELExpression operator <(ELExpression left, ulong right)
+            => left < left.compiler.MakeConst(right);
+        public static ELExpression operator <(ulong left, ELExpression right)
+            => right.compiler.MakeConst(left) < right;
+        public static ELExpression operator <(ELExpression left, int right)
+            => left < left.compiler.MakeConst(right);
+        public static ELExpression operator <(int left, ELExpression right)
+            => right.compiler.MakeConst(left) < right;
+        public static ELExpression operator <(ELExpression left, uint right)
+            => left < left.compiler.MakeConst(right);
+        public static ELExpression operator <(uint left, ELExpression right)
+            => right.compiler.MakeConst(left) < right;
+
+        public static ELExpression operator >(ELExpression left, ELExpression right)
+        {
+            return CreateBinary(BinaryOperationType.LESS, right, left);
+        }
+        public static ELExpression operator >(ELExpression left, long right)
+            => left > left.compiler.MakeConst(right);
+        public static ELExpression operator >(long left, ELExpression right)
+            => right.compiler.MakeConst(left) > right;
+        public static ELExpression operator >(ELExpression left, ulong right)
+            => left > left.compiler.MakeConst(right);
+        public static ELExpression operator >(ulong left, ELExpression right)
+            => right.compiler.MakeConst(left) > right;
+        public static ELExpression operator >(ELExpression left, int right)
+            => left > left.compiler.MakeConst(right);
+        public static ELExpression operator >(int left, ELExpression right)
+            => right.compiler.MakeConst(left) > right;
+        public static ELExpression operator >(ELExpression left, uint right)
+            => left > left.compiler.MakeConst(right);
+        public static ELExpression operator >(uint left, ELExpression right)
+            => right.compiler.MakeConst(left) > right;
+
+        public static ELExpression operator <=(ELExpression left, ELExpression right)
+        {
+            return !CreateBinary(BinaryOperationType.LESS, left, right);
+        }
+        public static ELExpression operator <=(ELExpression left, long right)
+            => left <= left.compiler.MakeConst(right);
+        public static ELExpression operator <=(long left, ELExpression right)
+            => right.compiler.MakeConst(left) <= right;
+        public static ELExpression operator <=(ELExpression left, ulong right)
+            => left <= left.compiler.MakeConst(right);
+        public static ELExpression operator <=(ulong left, ELExpression right)
+            => right.compiler.MakeConst(left) <= right;
+        public static ELExpression operator <=(ELExpression left, int right)
+            => left <= left.compiler.MakeConst(right);
+        public static ELExpression operator <=(int left, ELExpression right)
+            => right.compiler.MakeConst(left) <= right;
+        public static ELExpression operator <=(ELExpression left, uint right)
+            => left <= left.compiler.MakeConst(right);
+        public static ELExpression operator <=(uint left, ELExpression right)
+            => right.compiler.MakeConst(left) <= right;
+
+        public static ELExpression operator >=(ELExpression left, ELExpression right)
+        {
+            return !CreateBinary(BinaryOperationType.LESS, right, left);
+        }
+        public static ELExpression operator >=(ELExpression left, long right)
+            => left >= left.compiler.MakeConst(right);
+        public static ELExpression operator >=(long left, ELExpression right)
+            => right.compiler.MakeConst(left) >= right;
+        public static ELExpression operator >=(ELExpression left, ulong right)
+            => left >= left.compiler.MakeConst(right);
+        public static ELExpression operator >=(ulong left, ELExpression right)
+            => right.compiler.MakeConst(left) >= right;
+        public static ELExpression operator >=(ELExpression left, int right)
+            => left >= left.compiler.MakeConst(right);
+        public static ELExpression operator >=(int left, ELExpression right)
+            => right.compiler.MakeConst(left) >= right;
+        public static ELExpression operator >=(ELExpression left, uint right)
+            => left >= left.compiler.MakeConst(right);
+        public static ELExpression operator >=(uint left, ELExpression right)
+            => right.compiler.MakeConst(left) >= right;
+
         public ELReference this[ELExpression index] => (this + index).PtrToRef();
         public ELReference this[long index] => (this + index).PtrToRef();
         public ELReference this[ulong index] => (this + index).PtrToRef();

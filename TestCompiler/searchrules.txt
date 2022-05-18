@@ -4,15 +4,15 @@
 # subsearch in base classes
 @baseclass-search(@name, @isstatic, @visibility) =
 	# search here
-	name(@name) & relation(member) & attribute(@isstatic) & @max-visibility(protected, @visibility) 
+	name(@name) & relation(child) & attribute(@isstatic) & @max-visibility(protected, @visibility) 
 	?| # search in base class
-	relation(base-class) . @baseclass-subsearch(@name, @isstatic, @visibility)
+	relation(base-class) . @baseclass-search(@name, @isstatic, @visibility)
 	;
 
 # search in the whole parent chain but without global search
 @class-search(@name, @isstatic, @visibility) =
 	# search here
-	name(@name) & relation(member) & attribute(@isstatic) & attribute(@visibility)
+	name(@name) & relation(child) & attribute(@isstatic) & attribute(@visibility)
 	?| # search in base class
 	relation(base-class) . @baseclass-search(@name, @isstatic, @visibility)
 	;
@@ -24,9 +24,11 @@
 	relation(parent) . @global-search(@name)
 	;
 
-@anymethod() = type(method) | type(constructor);
-
 #-----export-----#
+
+# search for variable in the current scope
+@scope-search(@name) =
+	name(@name) & type(local-var);
 
 # search in local scopes
 @local-search(@name) =
@@ -35,17 +37,17 @@
 	?| # search in parent scopes
 	relation(parent) & type(scope) . @local-search(@name)
 	?| # search in parameters
-	relation(parent) & @anymethod() . name(@name) & relation(parameter)
+	relation(parent) & type(method) . name(@name) & relation(parameter)
 	?| # static private search in class
-	relation(parent) & @anymethod() & attribute(static) 
+	relation(parent) & type(method) & attribute(static) 
 		. relation(parent)
 		. @class-search(@name, static, private)
 	?| # private search in class
-	relation(parent) & @anymethod() & attribute(instance)
+	relation(parent) & type(method) & attribute(instance)
 		. relation(parent)
 		. @class-search(@name, anymember, private)
 	?| # global search starting from method to not start it everytime when rec call @local-search
-	relation(parent) & @anymethod()
+	relation(parent) & type(method)
 		. @global-search(@name)
 	;
 
@@ -56,11 +58,8 @@
 	;
 
 # dot-search for protected-visibility instances
-@protected-dot-search(@name, @basename, @isstatic) =
-	# try public dot search for the main class name
-	@public-dot-search(@name, @isstatic)
-	?| # try to get protected instance from the base class name
-	@class-search(@basename, @isstatic, protected)
+@protected-dot-search(@name, @isstatic) =
+	@class-search(@name, @isstatic, protected)
 	;
 
 # dot-search for private-visibility instances
@@ -73,6 +72,17 @@
 @baseclasses-search() =
 	relation(base-class) +. @baseclasses-search()
 	?|
-	relation(parent) & (type(scope) | @anymethod()) . @baseclasses-search()
+	relation(parent) & (type(scope) | type(method)) . @baseclasses-search()
 	;
+
+#search for method
+@find-parent-method() =
+	relation(parent) & type(method)
+	?|
+	relation(parent) & type(scope) . @find-parent-method()
+	;
+
+#search for class
+@find-parent-class() =
+	@find-parent-method() . relation(parent);
 

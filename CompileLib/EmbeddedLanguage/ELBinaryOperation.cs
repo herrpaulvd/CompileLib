@@ -12,7 +12,8 @@ namespace CompileLib.EmbeddedLanguage
         ADD,
         SUB,
         MUL,
-        DIV
+        DIV,
+        LESS
     }
 
     internal class ELBinaryOperation : ELExpression
@@ -53,6 +54,7 @@ namespace CompileLib.EmbeddedLanguage
                     => CheckCommonArithmetic(l, r) ?? CheckPointerArithmetic(l, r) ?? throw new ArgumentException($"Incompatible types: {left.Type} and {right.Type}"),
                 BinaryOperationType.MUL
                 or BinaryOperationType.DIV
+                or BinaryOperationType.LESS
                     => CheckCommonArithmetic(l, r) ?? throw new ArgumentException($"Incompatible types: {left.Type} and {right.Type}"),
                 _
                     => throw new NotImplementedException()

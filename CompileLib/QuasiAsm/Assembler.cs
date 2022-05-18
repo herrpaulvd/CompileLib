@@ -23,6 +23,7 @@ namespace CompileLib.QuasiAsm
         public static readonly AsmFixedOperation SUB = new(AsmSenderRequired.Pair, "SUB");
         public static readonly AsmFixedOperation MUL = new(AsmSenderRequired.Pair, "MUL");
         public static readonly AsmFixedOperation DIV = new(AsmSenderRequired.Pair, "DIV");
+        public static readonly AsmFixedOperation LESS = new(AsmSenderRequired.Pair, "LESS");
         public static readonly AsmFixedOperation GOTOIF = new(AsmSenderRequired.Pair, "GOTOIF"); // condition + label
         // label is const AsmOperand, is the number to where go
 

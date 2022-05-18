@@ -15,5 +15,12 @@ namespace TestCompiler.CodeObjects
         {
             IsBreak = isBreak;
         }
+
+        public override void Compile(CompilationParameters compilation)
+        {
+            if (!compilation.HasLabels)
+                throw new CompilationError("No loop for the statement", Line, Column);
+            compilation.Compiler.Goto(IsBreak ? compilation.BreakLabel : compilation.ContinueLabel);
+        }
     }
 }

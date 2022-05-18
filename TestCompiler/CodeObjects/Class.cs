@@ -16,6 +16,7 @@ namespace TestCompiler.CodeObjects
         public bool IsPredefined { get; private set; }
         public ELType TargetType { get; set; }
         public ELStructType? StrucType { get; set; }
+        public bool IsSigned { get; private set; }
 
         public Class(
             string name,
@@ -25,6 +26,7 @@ namespace TestCompiler.CodeObjects
             ClassMember[] members) 
             : base(name, "class", line, column)
         {
+            IsSigned = false;
             TargetType = ELType.PVoid;
             IsPredefined = false;
             BaseClassName = baseClassName;
@@ -39,13 +41,28 @@ namespace TestCompiler.CodeObjects
         public Class(
             string name,
             ClassMember[] members,
-            ELType targetType
+            ELType targetType,
+            bool isSigned
             )
             : base(name, "class", -1, -1)
         {
             TargetType = targetType;
             IsPredefined = true;
             Members = members;
+            IsSigned = isSigned;
+            foreach (var member in members)
+            {
+                member.AddRelation("parent", this);
+                AddRelation("child", member);
+            }
+        }
+
+        public bool Inherits(Class c)
+        {
+            var baseclass = GetOneRelated("base-class");
+            if (baseclass == c)
+                return true;
+                return baseclass is Class other && other.Inherits(c);
         }
     }
 }

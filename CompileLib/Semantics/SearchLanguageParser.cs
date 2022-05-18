@@ -65,8 +65,8 @@ namespace CompileLib.Semantics
         }
 
         [SetTag("atom-func")]
-        public static string ReadAtomFunc(
-            [Keywords("name", "type", "relation", "attribute")] string func
+        public static Token ReadAtomFunc(
+            [Keywords("name", "type", "relation", "attribute")] Token func
             )
         {
             return func;
@@ -171,8 +171,8 @@ namespace CompileLib.Semantics
         }
 
         private readonly ParsingEngine SLParsingEngine = new ParsingEngineBuilder()
-            .AddToken("atom", @"[[:alnum:]_-]+|""[^""[:cntrl:]]*""")
-            .AddToken("var", @"@[[:alnum:]_-]+")
+            .AddToken("atom", @"[-[:alnum:]_]+|""[^""[:cntrl:]]*""")
+            .AddToken("var", @"@[-[:alnum:]_]+")
             .AddToken(SpecialTags.TAG_SKIP, "[[:space:]]")
             .AddToken(SpecialTags.TAG_SKIP, @"#[^[:cntrl:]]*")
             .AddProductions<SearchLanguageParser>()

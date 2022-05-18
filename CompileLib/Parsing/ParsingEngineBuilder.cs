@@ -253,7 +253,7 @@ namespace CompileLib.Parsing
                         sub2.Body.Add(e);
                         if (!manyAttribute.CanBeEmpty) sub1.Body.Add(e);
                         int divisor = 1;
-                        for (i++; i < self.Body.Count && self.Body[i].TagType is TogetherWithAttribute; i++)
+                        for (i++; i < self.Body.Count && self.Body[i].RepetitionCount is TogetherWithAttribute; i++)
                         {
                             subParamNames.Add(self.Body[i].ParameterName);
                             e = SplitBodyElement(self.Body[i]);
@@ -266,9 +266,9 @@ namespace CompileLib.Parsing
                         sub2.Body.Add(subStart);
                         newThis.Body.Add(subStart);
 
-                        sub1.Divisor = 1;
+                        sub1.Divisor = divisor;
                         result.Add(sub1);
-                        sub2.Divisor = 1;
+                        sub2.Divisor = divisor;
                         result.Add(sub2);
                     }
                     else

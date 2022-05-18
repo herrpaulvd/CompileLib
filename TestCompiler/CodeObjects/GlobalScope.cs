@@ -30,8 +30,13 @@ namespace TestCompiler.CodeObjects
 
             // check names
             SortedDictionary<string, Class> name2class = new();
-            foreach(var component in PredefClasses.Make())
+            var (compiler, predefs) = PredefClasses.Make();
+            foreach(var component in predefs)
+            {
                 name2class.Add(component.Name, component);
+                component.AddRelation("parent", this);
+                AddRelation("child", component);
+            }
 
             foreach (var component in Components)
             {
@@ -44,25 +49,9 @@ namespace TestCompiler.CodeObjects
             foreach (var component in Components)
             {
                 classMember2name.Clear();
-                bool instanceCtor = false;
-                bool staticCtor = false;
 
                 foreach (var member in component.Members)
                 {
-                    if (member.Type == "constructor")
-                    {
-                        if(member.HasAttribute("static"))
-                        {
-                            if (staticCtor) throw new CompilationError($"Type {component.Name}: only one static constructor is allowed");
-                            staticCtor = true;
-                        }
-                        else
-                        {
-                            if (instanceCtor) throw new CompilationError($"Type {component.Name}: only one instance constructor is allowed");
-                            instanceCtor = true;
-                        }
-                        continue;
-                    }
                     if (classMember2name.ContainsKey(member.Name))
                         throw new CompilationError($"Duplicate member name {member.Name} in class {component.Name}");
                     classMember2name.Add(member.Name, member);
@@ -91,7 +80,11 @@ namespace TestCompiler.CodeObjects
                 }
             }
 
+            foreach (var kv in class2base)
+                name2class[kv.Key].AddRelation("base-class", name2class[kv.Value]);
+
             SortedSet<string> elResolved = new();
+            List<Method> methods = new();
             foreach(var component in Components)
             {
                 if (elResolved.Contains(component.Name)) continue;
@@ -106,7 +99,7 @@ namespace TestCompiler.CodeObjects
                 {
                     var clss = name2class[name];
                     List<ELType> elFields = new();
-                    if(class2base[name] is string baseclass)
+                    if(class2base.ContainsKey(name) && class2base[name] is string baseclass)
                     {
                         var baseStruc = name2class[baseclass].StrucType;
                         int n = baseStruc.FieldCount;
@@ -118,33 +111,35 @@ namespace TestCompiler.CodeObjects
                     {
                         if (member is Field f)
                         {
-                            f.StrucFieldIndex = elFields.Count;
-                            if(f.TypeExpression.IsVoid())
-                                throw new CompilationError($"Field {component.Name}.{f.Name}: invalid type");
-                            var fieldClassName = f.TypeExpression.ClassName;
-                            if (!name2class.ContainsKey(fieldClassName))
-                                throw new CompilationError($"Field {component.Name}.{f.Name}: invalid type");
-                            var elFieldType = name2class[fieldClassName].TargetType;
-                            for (int i = 0; i < f.TypeExpression.PointerDepth; i++)
-                                elFieldType = elFieldType.MakePointer();
-                            elFields.Add(elFieldType);
-                        }
-                        else if (member is Method m)
-                        {
-                            string fullName;
-                            if(m.IsConstructor)
+                            if(f.HasAttribute("static"))
                             {
-                                fullName = $"Constructor {component.Name}.constructor";
-                                if (m.TypeExpression.ClassName != component.Name)
-                                    throw new CompilationError($"Class {component.Name}: invalid constructor declaration");
+                                if (f.TypeExpression.IsVoid())
+                                    throw new CompilationError($"Field {component.Name}.{f.Name}: invalid type");
+                                var fieldClassName = f.TypeExpression.ClassName;
+                                if (!name2class.ContainsKey(fieldClassName))
+                                    throw new CompilationError($"Field {component.Name}.{f.Name}: invalid type");
+                                var elFieldType = f.TypeExpression.GetResolvedType(name2class);
+                                f.GlobalVar = compiler.AddGlobalVariable(elFieldType);
                             }
                             else
                             {
-                                fullName = $"Method {component.Name}.{m.Name}";
-                                var resClassName = m.TypeExpression.ClassName;
-                                if (!name2class.ContainsKey(resClassName))
-                                    throw new CompilationError($"{fullName}: invalid type");
+                                f.StrucFieldIndex = elFields.Count;
+                                if (f.TypeExpression.IsVoid())
+                                    throw new CompilationError($"Field {component.Name}.{f.Name}: invalid type");
+                                var fieldClassName = f.TypeExpression.ClassName;
+                                if (!name2class.ContainsKey(fieldClassName))
+                                    throw new CompilationError($"Field {component.Name}.{f.Name}: invalid type");
+                                var elFieldType = f.TypeExpression.GetResolvedType(name2class);
+                                elFields.Add(elFieldType);
                             }
+                        }
+                        else if (member is Method m)
+                        {
+                            methods.Add(m);
+                            string fullName = $"Method {component.Name}.{m.Name}";
+                            var resClassName = m.TypeExpression.ClassName;
+                            if (!name2class.ContainsKey(resClassName))
+                                throw new CompilationError($"{fullName}: invalid type");
 
                             SortedSet<string> paramNames = new();
                             foreach(var p in m.Parameters)
@@ -160,20 +155,57 @@ namespace TestCompiler.CodeObjects
                             }
                         }
                     }
-                    clss.TargetType = new ELStructType(1, elFields.ToArray());
+                    clss.StrucType = new ELStructType(1, elFields.ToArray());
                 }
             }
 
-            // TODO: раздать методам ELFunction
-            // + начать их компилить
-            // TODO: предусмотреть класс как parent для scope
-            // засунуть инициализацию полей (в отдельных scope) в конструктор
-            // скомпилить собственно методы
-            // TODO: может быть раздать прям типы TypeExpression'ам???
-            // с указанием куда кастовать ???
+            foreach(var m in methods)
+            {
+                var ret = m.TypeExpression.GetResolvedType(name2class);
+                List<ELType> ptypes = new();
+                List<Parameter> allparams = new();
+                if (m.HasAttribute("instance"))
+                {
+                    var clss = (m.GetOneRelated("parent") as Class);
+                    ptypes.Add(clss.TargetType);
+                    Parameter pthis = new("this", -1, -1, new TypeExpression(-1, -1, clss.Name, 0));
+                    allparams.Add(pthis);
+                    m.AddRelation("parameter", pthis);
+                }
+                for (int i = 0; i < m.Parameters.Length; i++)
+                {
+                    ptypes.Add(m.Parameters[i].TypeExpression.GetResolvedType(name2class));
+                    allparams.Add(m.Parameters[i]);
+                }
+                m.Compiled = compiler.CreateFunction(ret, ptypes.ToArray());
+                for(int i = 0; i < allparams.Count; i++)
+                    allparams[i].Variable = m.Compiled.GetParameter(i);
+            }
 
-            //foreach(var component in Components)
-            //    component.ResolveTypes(network);
+            CompilationParameters compilation = new(network, compiler, this, name2class);
+
+            foreach(var m in methods)
+            {
+                CodeObject scope = new("", "scope", m.Line, m.Column);
+                scope.AddRelation("parent", m);
+                m.Compiled.Open();
+                m.MainStatement.Compile(compilation.WithScope(scope));
+            }
+
+            compiler.OpenEntryPoint();
+            List<Method> mains = new();
+            foreach(var m in methods)
+            {
+                if (m.Name == "Main" && m.Visibility == MemberVisibility.Public && m.IsStatic && m.Parameters.Length == 0)
+                    mains.Add(m);
+            }
+
+            if (mains.Count == 0)
+                throw new CompilationError("No entry point is found");
+            if (mains.Count > 1)
+                throw new CompilationError("More than one entry point are found");
+            mains[0].Compiled.Call();
+            compiler.BuildAndSave(filename);
         }
     }
 }
