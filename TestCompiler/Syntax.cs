@@ -134,25 +134,26 @@ namespace TestCompiler
         }
 
         [SetTag("statement")]
+        public static Statement ReadInitStatement(
+            [Keywords("var")] Token kwvar,
+            [RequireTags("type-expr")] TypeExpression type,
+            [RequireTags("id")] string id,
+            [Optional(false)][Keywords("=")] string eq,
+            [TogetherWith][RequireTags("expr")] Expression expr,
+            [Keywords(";")] Token close
+            )
+        {
+            LocalVariable? localVariable = new(id, type.Line, type.Column, type);
+            return new SimpleStatement(kwvar.Line, kwvar.Column, localVariable, expr);
+        }
+
+        [SetTag("statement")]
         public static Statement ReadSimpleStatement(
-            [Optional(false)][Keywords("var")] Token kwvar,
-            [TogetherWith][RequireTags("type-expr")] TypeExpression type,
-            [TogetherWith][RequireTags("id")] string id,
-            [TogetherWith][Keywords("=")] string eq,
             [Optional(false)][RequireTags("expr")] Expression expr,
             [Keywords(";")] Token close
             )
         {
-            LocalVariable? localVariable = null;
-            if (type is not null)
-            {
-                localVariable = new(id, type.Line, type.Column, type);
-            }
-
-            int line = kwvar?.Line ?? expr?.Line ?? close.Line;
-            int column = kwvar?.Column ?? expr?.Column ?? close.Column;
-
-            return new SimpleStatement(line, column, localVariable, expr);
+            return new SimpleStatement(expr?.Line ?? close.Line, expr?.Column ?? close.Column, null, expr);
         }
 
         [SetTag("statement")]
@@ -263,8 +264,8 @@ namespace TestCompiler
         }
 
         [SetTag("expr-atom")]
-        public static Expression ReadNew(
-            [Keywords("new")] Token id
+        public static Expression ReadNewOrThis(
+            [Keywords("new", "this")] Token id
             )
         {
             return new IdExpression(id.Self, id.Line, id.Column);

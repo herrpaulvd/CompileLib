@@ -43,6 +43,8 @@ namespace CompileLib.Semantics
 
         public void AddAttribute(string name, string? value = null)
         {
+            if (attributes.ContainsKey(name))
+                throw new ArgumentException("Attribute with the name already exists", nameof(name));
             attributes.Add(name, value);
         }
 

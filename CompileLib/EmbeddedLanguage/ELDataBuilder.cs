@@ -12,7 +12,7 @@ namespace CompileLib.EmbeddedLanguage
 
         internal byte[] CreateArray() => data.ToArray();
 
-        private unsafe void AddRange(void* buffer, int count)
+        public unsafe void AddRange(void* buffer, int count)
         {
             var a = (byte*)buffer;
             for(int i = 0; i < count; i++) data.Add(a[i]);

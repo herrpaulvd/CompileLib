@@ -48,6 +48,7 @@ namespace TestCompiler.CodeObjects
             if(ElseBranch is not null)
             {
                 CodeObject elsescope = new("", "scope", -1, -1);
+                elsescope.AddRelation("parent", compilation.Scope);
                 ElseBranch.Compile(compilation.WithScope(elsescope));
             }
             compiler.MarkLabel(endlabel);

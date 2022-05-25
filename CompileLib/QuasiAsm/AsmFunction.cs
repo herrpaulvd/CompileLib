@@ -106,13 +106,13 @@ namespace CompileLib.QuasiAsm
                     if (arg.IsStruc()) return;
                     if (arg.IsParam())
                     {
-                        // TODO раздебагать тут!!!!!!!
                         parammax[arg.ID] = Math.Max(parammax[arg.ID], max[vertex]);
                         if (arg.IsRef())
                             paramref[arg.ID] = true;
                     }
                     if (arg.IsLocalVar())
                     {
+                        varmin[arg.ID] = Math.Min(varmin[arg.ID], min[vertex]);
                         varmax[arg.ID] = Math.Max(varmax[arg.ID], max[vertex]);
                         if (arg.IsRef())
                             varref[arg.ID] = true;
@@ -138,7 +138,10 @@ namespace CompileLib.QuasiAsm
                 }
 
                 if (op.Destination.IsLocalVar())
+                {
                     varmin[op.Destination.ID] = Math.Min(varmin[op.Destination.ID], min[vertex]);
+                    varmax[op.Destination.ID] = Math.Max(varmax[op.Destination.ID], max[vertex]);
+                }
             }
 
             List<(int time, int @event, int index)> scanline = new();
@@ -746,7 +749,8 @@ namespace CompileLib.QuasiAsm
                     }
                     else if (t is AsmFunction f)
                     {
-                        foreach(var arg in GetSequence().Reverse())
+                        var seq = GetSequence();
+                        foreach(var arg in seq.Reverse())
                         {
                             movRV(arg, ID_RAX);
                             writeb(0x50); // PUSH RAX
@@ -755,6 +759,9 @@ namespace CompileLib.QuasiAsm
                         writell(4); // call f
                         callTable.Add(new(output.Count, f.CallIndex, true, 4));
                         movVR(op.Destination);
+                        writearr(0x48, 0x81, 0xC4);
+                        int free = seq.Length * maxsize;
+                        writeptr(&free, 4);
                     }
                     else if (t is AsmImportCall importf)
                     {

@@ -12,6 +12,16 @@
 		return s;
 	}
 
+	public static String FromCharArray(char[] buffer)
+	{
+		var String s = new;
+		s.buffer = buffer;
+		while(buffer[s.size] != uint64(0))
+			s.size = s.size + uint64(1);
+		s.capacity = s.size;
+		return s;
+	}
+
 	public void PushBack(char c)
 	{
 		if(size == capacity)
@@ -73,12 +83,47 @@
 	}
 }
 
+class Point2
+{
+	protected uint64 x;
+	protected uint64 y;
+
+	public static Point2 Create(uint64 x, uint64 y)
+	{
+		var Point2 p = new;
+		p.x = x;
+		p.y = y;
+		return p;
+	}
+}
+
+class Point3 : Point2
+{
+	private uint64 z;
+
+	public static Point3 Create(uint64 x, uint64 y, uint64 z)
+	{
+		var Point3 p = new;
+		p.x = x;
+		p.y = y;
+		p.z = z;
+		return p;
+	}
+
+	public uint64 Abs() return x + y + z;
+}
+
 class Program
 {
+	private static uint64 ReadCoord(char[] name)
+	{
+		String.FromCharArray(name).Write();
+		String.FromCharArray(" = ").Write();
+		return String.ReadLine().ToInt();
+	}
+
 	public static void Main()
 	{
-		var uint64 x = String.ReadLine().ToInt();
-		var uint64 y = String.ReadLine().ToInt();
-		String.FromInt(x + y).WriteLine();
+		String.FromInt(Point3.Create(ReadCoord("x"), ReadCoord("y"), ReadCoord("z")).Abs()).WriteLine();
 	}
 }

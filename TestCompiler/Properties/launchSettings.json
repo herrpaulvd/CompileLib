@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TestCompiler": {
+      "commandName": "Project",
+      "commandLineArgs": "test.txt result.exe"
+    }
+  }
+}

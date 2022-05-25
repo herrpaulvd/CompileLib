@@ -1,3 +1,5 @@
-﻿Launcher.RegexTester.TestRegexes();
+﻿using CompileLib.Parsing;
+
+Launcher.RegexTester.TestRegexes();
 Launcher.SyntaxTester.TestSyntax();
-CompileLib.PEGen.PETEST.CreateExperimental("x.exe");
+
