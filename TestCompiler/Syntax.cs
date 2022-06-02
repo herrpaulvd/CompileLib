@@ -365,7 +365,7 @@ namespace TestCompiler
         [SetTag("expr-mul")]
         public static Expression ReadMulExpression(
             [RequireTags("expr-mul")] Expression left,
-            [Keywords("*", "/")] Token operation,
+            [Keywords("*", "/", "%")] Token operation,
             [RequireTags("expr-unary")] Expression right
             )
         {
@@ -419,7 +419,7 @@ namespace TestCompiler
         [SetTag("expr-log")]
         public static Expression ReadLogExpression(
             [RequireTags("expr-log")] Expression left,
-            [Keywords("&&", "||")] Token operation,
+            [Keywords("&&", "||", "&", "|", "^", "<<", ">>")] Token operation,
             [RequireTags("expr-cmp")] Expression right
             )
         {

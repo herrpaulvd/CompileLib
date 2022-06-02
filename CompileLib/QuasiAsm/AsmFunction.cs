@@ -340,6 +340,8 @@ namespace CompileLib.QuasiAsm
                     const byte SIB1 = 0x25; // for single reg
                     byte MODRM2 = (byte)(MODRM0 | (reg & 0b111)); // for two regs
 
+                    // instead of RAX read: given register
+
                     if (operand.IsGlobalVar())
                     {
                         if (operand.IsRef())
@@ -471,83 +473,93 @@ namespace CompileLib.QuasiAsm
 
                 // mov operand, RAX (only, because result reg)
                 // uses RBX
-                void movVR(AsmOperand operand)
+                void movVR(AsmOperand operand, int mainReg = ID_RAX, int helperReg = ID_RBX)
                 {
                     if (operand.IsUndefined()) return; // no result is needed
                     if (operand.IsRef()) throw new NotImplementedException(); // ref is a const
 
-                    const byte REX = REXW; // uses no r8-r15 in any case
-                    const byte MODRM1 = 0x04; // when mov [addr], RAX
+                    byte REX1 = REXW;
+                    if (mainReg >= ID_R8) REX1 |= REXR;
+                    byte MODRM1 = (byte)(0x04 | (mainReg << 3)); // when mov [addr], Rmain
                     const byte SIB1 = 0x25; // SIB for MODRM1
-                    const byte MODRM2 = ID_RBX; // when mov [RBX], RAX
-                    const byte MODRMLDADDR = MODRM1 | (ID_RBX << 3); // when mov RBX, [addr]
+
+                    byte REX2 = REXW;
+                    if(mainReg >= ID_R8) REX2 |= REXR;
+                    if (helperReg >= ID_R8) REX2 |= REXB;
+                    byte MODRM2 = (byte)(helperReg | (mainReg << 3)); // when mov [Rhelper], Rmain
+
+                    byte REXLDADDR = REXW;
+                    if(helperReg >= ID_R8) REXLDADDR |= REXR;
+                    byte MODRMLDADDR = (byte)(0x04 | (helperReg << 3)); // when mov Rhelper, [addr]
                     const byte SIBLDADDR = SIB1; // SIB for MODRMLDADDR
 
                     if (operand.IsGlobalVar())
                     {
                         if(operand.IsVal())
                         {
-                            if (operand.Size == maxsize) writeb(REX);
+                            if (operand.Size == maxsize) writeb(REX1);
                             if (operand.Size == 2) writeb(PREF_16);
                             writearr(operand.Size == 1 ? OP_MOVBACK8 : OP_MOVBACK, MODRM1, SIB1);
-                            writell(4); // mov [n], RAX
+                            writell(4); // mov [n], Rmain
                             globalVarTable.Add(new(output.Count, operand.ID, false, 4));
                         }
                         else
                         {
-                            writearr(REX, OP_MOV, MODRMLDADDR, SIBLDADDR);
-                            writell(4); // mov RBX, [n]
+                            writearr(REXLDADDR, OP_MOV, MODRMLDADDR, SIBLDADDR);
+                            writell(4); // mov Rhelper, [n]
                             globalVarTable.Add(new(output.Count, operand.ID, false, 4));
-                            if (operand.Size == maxsize) writeb(REX);
+                            if (operand.Size == maxsize) writeb(REX2);
                             if (operand.Size == 2) writeb(PREF_16);
-                            writearr(operand.Size == 1 ? OP_MOVBACK8 : OP_MOVBACK, MODRM2); // mov [RBX], RAX
+                            writearr(operand.Size == 1 ? OP_MOVBACK8 : OP_MOVBACK, MODRM2); // mov [Rhelper], Rmain
                         }
                     }
                     else if (operand.IsParam() || operand.IsLocalVar())
                     {
+                        // TODO
                         int cell = operand.IsParam() ? param2cellOffset + maxsize * operand.ID : var2cell[operand.ID];
-                        byte MODRMBP = 0b101;
+                        byte MODRMBPmodifier = 0x5;
                         int offsetSize;
                         if (byte.MinValue <= cell && cell <= byte.MaxValue)
                         {
-                            MODRMBP |= MOD01;
+                            MODRMBPmodifier |= MOD01;
                             offsetSize = 1;
                         }
                         else
                         {
-                            MODRMBP |= MOD10;
+                            MODRMBPmodifier |= MOD10;
                             offsetSize = 4;
                         }
 
                         if (operand.IsVal())
                         {
-                            if (operand.Size == maxsize) writeb(REX);
+                            byte MODRMBP = (byte)(MODRMBPmodifier | (mainReg << 3));
+                            if (operand.Size == maxsize) writeb(REX1);
                             if (operand.Size == 2) writeb(PREF_16);
                             writearr(operand.Size == 1 ? OP_MOVBACK8 : OP_MOVBACK, MODRMBP);
-                            writeptr(&cell, offsetSize); // mov [RBP + cell], RAX
+                            writeptr(&cell, offsetSize); // mov [RBP + cell], Rmain
                         }
                         else
                         {
-                            MODRMBP |= ID_RBX << 3; // set RBX instead of RAX
-                            writearr(REX, OP_MOV, MODRMBP);
-                            writeptr(&cell, offsetSize); // mov RBX, [RBP + cell]
-                            if (operand.Size == maxsize) writeb(REX);
+                            byte MODRMBP = (byte)(MODRMBPmodifier | (helperReg << 3));
+                            writearr(REXLDADDR, OP_MOV, MODRMBP);
+                            writeptr(&cell, offsetSize); // mov Rhelper, [RBP + cell]
+                            if (operand.Size == maxsize) writeb(REX2);
                             if (operand.Size == 2) writeb(PREF_16);
-                            writearr(operand.Size == 1 ? OP_MOVBACK8 : OP_MOVBACK, MODRM2); // mov [RBX], RAX
+                            writearr(operand.Size == 1 ? OP_MOVBACK8 : OP_MOVBACK, MODRM2); // mov [Rhelper], Rmain
                         }
                     }
                     else if (operand.IsConst())
                     {
                         long value = index2const[operand.ID];
-                        const byte LONGMOV = OP_LONGMOV + (ID_RBX & 0b111);
+                        byte LONGMOV = (byte)(OP_LONGMOV + (helperReg & 0b111));
                         if (operand.IsDeref())
                         {
-                            writeb(REX);
+                            writeb(REXLDADDR);
                             writeb(LONGMOV);
-                            writeptr(&value, maxsize); // mov RBX, const
-                            if (operand.Size == maxsize) writeb(REX);
+                            writeptr(&value, maxsize); // mov Rhelper, const
+                            if (operand.Size == maxsize) writeb(REX2);
                             if (operand.Size == 2) writeb(PREF_16);
-                            writearr(operand.Size == 1 ? OP_MOVBACK8 : OP_MOVBACK, MODRM2); // mov [RBX], RAX
+                            writearr(operand.Size == 1 ? OP_MOVBACK8 : OP_MOVBACK, MODRM2); // mov [Rhelper], Rmain
                         }
                         else throw new NotImplementedException();
                     }
@@ -555,10 +567,10 @@ namespace CompileLib.QuasiAsm
                     {
                         if (operand.IsDeref())
                         {
-                            if (operand.Size == maxsize) writeb(REX);
+                            if (operand.Size == maxsize) writeb(REX2);
                             if (operand.Size == 2) writeb(PREF_16);
                             writearr(operand.Size == 1 ? OP_MOVBACK8 : OP_MOVBACK, MODRM1, SIB1);
-                            writell(4); // mov [n], RAX
+                            writell(4); // mov [n], Rmain
                             dataTable.Add(new(output.Count, operand.ID, false, 4));
                         }
                         else throw new NotImplementedException();
@@ -627,17 +639,28 @@ namespace CompileLib.QuasiAsm
                     }
                     else if (t == Assembler.MOV)
                     {
-                        movRV(GetSingle(), ID_RAX);
-                        movVR(op.Destination);
+                        var source = GetSingle();
+                        if(source.IsStruc())
+                        {
+                            movStruc(source, op.Destination);
+                        }
+                        else
+                        {
+                            movRV(source, ID_RAX);
+                            movVR(op.Destination);
+                        }
                     }
                     else if (t == Assembler.BOOLEAN_NOT)
                     {
+                        writearr(
+                            0x48, 0xC7, 0xC1, 0x01, 0x00, 0x00, 0x00, // mov rcx, 1
+                            0x48, 0x31, 0xC0 // xor rax, rax
+                        ); 
                         movRV(GetSingle(), ID_RBX);
                         writearr(
-                            0x48, 0x31, 0xC0, // xor rax, rax
-                            0x48, 0x83, 0xC3, 0xFF, // add rbx, -1 (CF = 1 when rbx != 0)
-                            0x48, 0x83, 0xD0, 0xFF // adc rax, -1 (rbx != 0 => CF = 1 => 0; rbx = 0 => CF = 0 => -1)
-                            );
+                            0x48, 0x83, 0xFB, 0x00, // cmp rbx, 0
+                            0x48, 0x0F, 0x44, 0xC1  // cmovz rax, rcx
+                        );
                         movVR(op.Destination);
                     }
                     else if (t == Assembler.BITWISE_NOT)
@@ -684,8 +707,8 @@ namespace CompileLib.QuasiAsm
                         }
                         movVR(op.Destination);
                     }
-                    else if (t == Assembler.DIV)
-                    {// todo
+                    else if (t == Assembler.DIV || t == Assembler.MOD)
+                    {
                         var (a, b) = GetPair();
                         if (a.IsSigned() != b.IsSigned()) throw new NotImplementedException();
                         movRV(a, ID_RAX);
@@ -704,46 +727,126 @@ namespace CompileLib.QuasiAsm
                                 0x48, 0xF7, 0xF3  // div rbx
                                 );
                         }
-                        movVR(op.Destination);
-                        // TODO when creating Assembler.MOD: make movVR for RDX
+                        if(t == Assembler.DIV)
+                            movVR(op.Destination);
+                        else
+                            movVR(op.Destination, ID_RDX, ID_RAX);
                     }
-                    else if (t == Assembler.LESS)
+                    else if(t == Assembler.AND)
+                    {
+                        var (a, b) = GetPair();
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RBX);
+                        writearr(0x48, 0x21, 0xD8); // and rax, rbx
+                        movVR(op.Destination);
+                    }
+                    else if(t == Assembler.OR)
+                    {
+                        var (a, b) = GetPair();
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RBX);
+                        writearr(0x48, 0x09, 0xD8); // or rax, rbx
+                        movVR(op.Destination);
+                    }
+                    else if(t == Assembler.XOR)
+                    {
+                        var (a, b) = GetPair();
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RBX);
+                        writearr(0x48, 0x31, 0xD8); // or rax, rbx
+                        movVR(op.Destination);
+                    }
+                    else if(t == Assembler.SL)
+                    {
+                        var (a, b) = GetPair();
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RCX);
+                        writearr(0x48, 0xD3, 0xE0); // sal(shl) rax, rbx
+                        movVR(op.Destination);
+                    }
+                    else if(t == Assembler.SR)
+                    {
+                        var (a, b) = GetPair();
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RCX);
+
+                        if (a.IsSigned())
+                            writearr(0x48, 0xD3, 0xF8); // sar rax, rbx
+                        else
+                            writearr(0x48, 0xD3, 0xE8); // shr rax, rbx
+
+                        movVR(op.Destination);
+                    }
+                    else if (t == Assembler.LESS || t == Assembler.GREATER || t == Assembler.LESSEQ || t == Assembler.GREATEREQ)
                     {
                         var (a, b) = GetPair();
                         movRV(a, ID_RAX);
                         movRV(b, ID_RBX);
 
                         if(a.IsSigned() != b.IsSigned()) throw new NotImplementedException();
+
+                        writearr(
+                            0x48, 0xC7, 0xC2, 0x01, 0x00, 0x00, 0x00, // mov RDX, 1
+                            0x48, 0x31, 0xC9, // xor rcx, rcx
+                            0x48, 0x39, 0xD8  // cmp rax, rbx
+                        );
+
+                        writeb(0x48); // REX-prefix for CMOV
+                        writeb(0x0F); // escape sequence
+                        // below: opcodes for different instructions
                         if(a.IsSigned())
                         {
-                            writearr(
-                                0x48, 0x39, 0xD8, // cmp rax, rbx
-                                0x7C, 0x05, // jl (mov rax, 1)
-                                0x48, 0x31, 0xC0, // xor rax, rax
-                                0xEB, 0x07, // jmp after (mov rax, rax)
-                                0x48, 0xC7, 0xC0, 0x01, 0x00, 0x00, 0x00 // mov rax, 1
-                                );
+                            if (t == Assembler.LESS)
+                            {
+                                writeb(0x4C); // cmovl
+                            }
+                            else if (t == Assembler.GREATER)
+                            {
+                                writeb(0x4F); // cmovg
+                            }
+                            else if (t == Assembler.LESSEQ)
+                            {
+                                writeb(0x4E); // cmovle
+                            }
+                            else if (t == Assembler.GREATEREQ)
+                            {
+                                writeb(0x4D); // cmovge
+                            }
+                            else throw new NotImplementedException();
                         }
                         else
                         {
-                            writearr(
-                                   0x48, 0x39, 0xD8, // cmp rax, rbx
-                                   0x72, 0x05, // jb (mov rax, 1)
-                                   0x48, 0x31, 0xC0, // xor rax, rax
-                                   0xEB, 0x07, // jmp after (mov rax, rax)
-                                   0x48, 0xC7, 0xC0, 0x01, 0x00, 0x00, 0x00 // mov rax, 1
-                                   );
+                            if (t == Assembler.LESS)
+                            {
+                                writeb(0x42); // cmovb
+                            }
+                            else if (t == Assembler.GREATER)
+                            {
+                                writeb(0x47); // cmova
+                            }
+                            else if (t == Assembler.LESSEQ)
+                            {
+                                writeb(0x43); // cmovae
+                            }
+                            else if (t == Assembler.GREATEREQ)
+                            {
+                                writeb(0x46); // cmovbe
+                            }
+                            else throw new NotImplementedException();
                         }
+                        writeb(0xCA); // MODRM for pair (RCX, RDX)
 
-                        movVR(op.Destination);
+                        movVR(op.Destination, ID_RCX, ID_RDX);
                     }
                     else if (t == Assembler.GOTOIF)
                     {
                         var (a, b) = GetPair();
                         int label = (int)index2const[b.ID];
                         movRV(a, ID_RAX);
-                        writeb(0x0F);
-                        writeb(0x85);
+                        writearr(
+                            0x48, 0x83, 0xF8, 0x00, // cmp rax, 0
+                            0x0F, 0x85 // ...
+                        );
                         writell(4); // jnz label
                         jumps.Add(new(output.Count, label, true, 4));
                     }

@@ -32,26 +32,31 @@ namespace CompileLib.EmbeddedLanguage
             => operand.compiler.TestContext(operand, nameof(operand))
             ?? operand.compiler.AddExpression(new ELUnaryOperation(operand, t));
 
-        public static ELExpression operator+(ELExpression left, ELExpression right)
+        public ELExpression ShiftLeft(ELExpression count)
+            => CreateBinary(BinaryOperationType.SL, this, count);
+        public ELExpression ShiftRight(ELExpression count)
+            => CreateBinary(BinaryOperationType.SR, this, count);
+
+        public static ELExpression operator +(ELExpression left, ELExpression right)
             => CreateBinary(BinaryOperationType.ADD, left, right);
-        public static ELExpression operator+(ELExpression left, long right)
+        public static ELExpression operator +(ELExpression left, long right)
             => CreateBinary(BinaryOperationType.ADD, left, left.compiler.MakeConst(right));
-        public static ELExpression operator+(long left, ELExpression right)
+        public static ELExpression operator +(long left, ELExpression right)
             => CreateBinary(BinaryOperationType.ADD, right.compiler.MakeConst(left), right);
-        public static ELExpression operator+(ELExpression left, ulong right)
+        public static ELExpression operator +(ELExpression left, ulong right)
             => CreateBinary(BinaryOperationType.ADD, left, left.compiler.MakeConst(right));
-        public static ELExpression operator+(ulong left, ELExpression right)
+        public static ELExpression operator +(ulong left, ELExpression right)
             => CreateBinary(BinaryOperationType.ADD, right.compiler.MakeConst(left), right);
-        public static ELExpression operator+(ELExpression left, int right)
+        public static ELExpression operator +(ELExpression left, int right)
             => CreateBinary(BinaryOperationType.ADD, left, left.compiler.MakeConst(right));
-        public static ELExpression operator+(int left, ELExpression right)
+        public static ELExpression operator +(int left, ELExpression right)
             => CreateBinary(BinaryOperationType.ADD, right.compiler.MakeConst(left), right);
-        public static ELExpression operator+(ELExpression left, uint right)
+        public static ELExpression operator +(ELExpression left, uint right)
             => CreateBinary(BinaryOperationType.ADD, left, left.compiler.MakeConst(right));
-        public static ELExpression operator+(uint left, ELExpression right)
+        public static ELExpression operator +(uint left, ELExpression right)
             => CreateBinary(BinaryOperationType.ADD, right.compiler.MakeConst(left), right);
 
-        public static ELExpression operator-(ELExpression left, ELExpression right)
+        public static ELExpression operator -(ELExpression left, ELExpression right)
             => CreateBinary(BinaryOperationType.SUB, left, right);
         public static ELExpression operator -(ELExpression left, long right)
             => CreateBinary(BinaryOperationType.SUB, left, left.compiler.MakeConst(right));
@@ -70,7 +75,7 @@ namespace CompileLib.EmbeddedLanguage
         public static ELExpression operator -(uint left, ELExpression right)
             => CreateBinary(BinaryOperationType.SUB, right.compiler.MakeConst(left), right);
 
-        public static ELExpression operator*(ELExpression left, ELExpression right)
+        public static ELExpression operator *(ELExpression left, ELExpression right)
             => CreateBinary(BinaryOperationType.MUL, left, right);
         public static ELExpression operator *(ELExpression left, long right)
             => CreateBinary(BinaryOperationType.MUL, left, left.compiler.MakeConst(right));
@@ -89,7 +94,7 @@ namespace CompileLib.EmbeddedLanguage
         public static ELExpression operator *(uint left, ELExpression right)
             => CreateBinary(BinaryOperationType.MUL, right.compiler.MakeConst(left), right);
 
-        public static ELExpression operator/(ELExpression left, ELExpression right)
+        public static ELExpression operator /(ELExpression left, ELExpression right)
             => CreateBinary(BinaryOperationType.DIV, left, right);
         public static ELExpression operator /(ELExpression left, long right)
             => CreateBinary(BinaryOperationType.DIV, left, left.compiler.MakeConst(right));
@@ -108,6 +113,87 @@ namespace CompileLib.EmbeddedLanguage
         public static ELExpression operator /(uint left, ELExpression right)
             => CreateBinary(BinaryOperationType.DIV, right.compiler.MakeConst(left), right);
 
+        public static ELExpression operator %(ELExpression left, ELExpression right)
+            => CreateBinary(BinaryOperationType.MOD, left, right);
+        public static ELExpression operator %(ELExpression left, long right)
+            => CreateBinary(BinaryOperationType.MOD, left, left.compiler.MakeConst(right));
+        public static ELExpression operator %(long left, ELExpression right)
+            => CreateBinary(BinaryOperationType.MOD, right.compiler.MakeConst(left), right);
+        public static ELExpression operator %(ELExpression left, ulong right)
+            => CreateBinary(BinaryOperationType.MOD, left, left.compiler.MakeConst(right));
+        public static ELExpression operator %(ulong left, ELExpression right)
+            => CreateBinary(BinaryOperationType.MOD, right.compiler.MakeConst(left), right);
+        public static ELExpression operator %(ELExpression left, int right)
+            => CreateBinary(BinaryOperationType.MOD, left, left.compiler.MakeConst(right));
+        public static ELExpression operator %(int left, ELExpression right)
+            => CreateBinary(BinaryOperationType.MOD, right.compiler.MakeConst(left), right);
+        public static ELExpression operator %(ELExpression left, uint right)
+            => CreateBinary(BinaryOperationType.MOD, left, left.compiler.MakeConst(right));
+        public static ELExpression operator %(uint left, ELExpression right)
+            => CreateBinary(BinaryOperationType.MOD, right.compiler.MakeConst(left), right);
+
+        public static ELExpression operator &(ELExpression left, ELExpression right)
+            => CreateBinary(BinaryOperationType.AND, left, right);
+        public static ELExpression operator &(ELExpression left, long right)
+            => CreateBinary(BinaryOperationType.AND, left, left.compiler.MakeConst(right));
+        public static ELExpression operator &(long left, ELExpression right)
+            => CreateBinary(BinaryOperationType.AND, right.compiler.MakeConst(left), right);
+        public static ELExpression operator &(ELExpression left, ulong right)
+            => CreateBinary(BinaryOperationType.AND, left, left.compiler.MakeConst(right));
+        public static ELExpression operator &(ulong left, ELExpression right)
+            => CreateBinary(BinaryOperationType.AND, right.compiler.MakeConst(left), right);
+        public static ELExpression operator &(ELExpression left, int right)
+            => CreateBinary(BinaryOperationType.AND, left, left.compiler.MakeConst(right));
+        public static ELExpression operator &(int left, ELExpression right)
+            => CreateBinary(BinaryOperationType.AND, right.compiler.MakeConst(left), right);
+        public static ELExpression operator &(ELExpression left, uint right)
+            => CreateBinary(BinaryOperationType.AND, left, left.compiler.MakeConst(right));
+        public static ELExpression operator &(uint left, ELExpression right)
+            => CreateBinary(BinaryOperationType.AND, right.compiler.MakeConst(left), right);
+
+        public static ELExpression operator |(ELExpression left, ELExpression right)
+            => CreateBinary(BinaryOperationType.OR, left, right);
+        public static ELExpression operator |(ELExpression left, long right)
+            => CreateBinary(BinaryOperationType.OR, left, left.compiler.MakeConst(right));
+        public static ELExpression operator |(long left, ELExpression right)
+            => CreateBinary(BinaryOperationType.OR, right.compiler.MakeConst(left), right);
+        public static ELExpression operator |(ELExpression left, ulong right)
+            => CreateBinary(BinaryOperationType.OR, left, left.compiler.MakeConst(right));
+        public static ELExpression operator |(ulong left, ELExpression right)
+            => CreateBinary(BinaryOperationType.OR, right.compiler.MakeConst(left), right);
+        public static ELExpression operator |(ELExpression left, int right)
+            => CreateBinary(BinaryOperationType.OR, left, left.compiler.MakeConst(right));
+        public static ELExpression operator |(int left, ELExpression right)
+            => CreateBinary(BinaryOperationType.OR, right.compiler.MakeConst(left), right);
+        public static ELExpression operator |(ELExpression left, uint right)
+            => CreateBinary(BinaryOperationType.OR, left, left.compiler.MakeConst(right));
+        public static ELExpression operator |(uint left, ELExpression right)
+            => CreateBinary(BinaryOperationType.OR, right.compiler.MakeConst(left), right);
+
+        public static ELExpression operator ^(ELExpression left, ELExpression right)
+            => CreateBinary(BinaryOperationType.XOR, left, right);
+        public static ELExpression operator ^(ELExpression left, long right)
+            => CreateBinary(BinaryOperationType.XOR, left, left.compiler.MakeConst(right));
+        public static ELExpression operator ^(long left, ELExpression right)
+            => CreateBinary(BinaryOperationType.XOR, right.compiler.MakeConst(left), right);
+        public static ELExpression operator ^(ELExpression left, ulong right)
+            => CreateBinary(BinaryOperationType.XOR, left, left.compiler.MakeConst(right));
+        public static ELExpression operator ^(ulong left, ELExpression right)
+            => CreateBinary(BinaryOperationType.XOR, right.compiler.MakeConst(left), right);
+        public static ELExpression operator ^(ELExpression left, int right)
+            => CreateBinary(BinaryOperationType.XOR, left, left.compiler.MakeConst(right));
+        public static ELExpression operator ^(int left, ELExpression right)
+            => CreateBinary(BinaryOperationType.XOR, right.compiler.MakeConst(left), right);
+        public static ELExpression operator ^(ELExpression left, uint right)
+            => CreateBinary(BinaryOperationType.XOR, left, left.compiler.MakeConst(right));
+        public static ELExpression operator ^(uint left, ELExpression right)
+            => CreateBinary(BinaryOperationType.XOR, right.compiler.MakeConst(left), right);
+
+        public static ELExpression operator <<(ELExpression left, int right)
+            => CreateBinary(BinaryOperationType.SL, left, left.compiler.MakeConst(right));
+        public static ELExpression operator >>(ELExpression left, int right)
+            => CreateBinary(BinaryOperationType.SR, left, left.compiler.MakeConst(right));
+
         public static ELExpression operator !(ELExpression operand)
             => CreateUnary(UnaryOperationType.BOOLEAN_NOT, operand);
         public static ELExpression operator -(ELExpression operand)
@@ -115,7 +201,7 @@ namespace CompileLib.EmbeddedLanguage
         public static ELExpression operator ~(ELExpression operand)
             => CreateUnary(UnaryOperationType.BITWISE_NOT, operand);
 
-        public static ELExpression operator==(ELExpression left, ELExpression right)
+        public static ELExpression operator ==(ELExpression left, ELExpression right)
         {
             return !(left != right);
         }
@@ -137,7 +223,7 @@ namespace CompileLib.EmbeddedLanguage
             => right.compiler.MakeConst(left) == right;
 
 
-        public static ELExpression operator!=(ELExpression left, ELExpression right)
+        public static ELExpression operator !=(ELExpression left, ELExpression right)
         {
             return left - right;
         }
@@ -181,7 +267,7 @@ namespace CompileLib.EmbeddedLanguage
 
         public static ELExpression operator >(ELExpression left, ELExpression right)
         {
-            return CreateBinary(BinaryOperationType.LESS, right, left);
+            return CreateBinary(BinaryOperationType.GREATER, left, right);
         }
         public static ELExpression operator >(ELExpression left, long right)
             => left > left.compiler.MakeConst(right);
@@ -202,7 +288,7 @@ namespace CompileLib.EmbeddedLanguage
 
         public static ELExpression operator <=(ELExpression left, ELExpression right)
         {
-            return !CreateBinary(BinaryOperationType.LESS, left, right);
+            return CreateBinary(BinaryOperationType.LESSEQ, left, right);
         }
         public static ELExpression operator <=(ELExpression left, long right)
             => left <= left.compiler.MakeConst(right);
@@ -223,7 +309,7 @@ namespace CompileLib.EmbeddedLanguage
 
         public static ELExpression operator >=(ELExpression left, ELExpression right)
         {
-            return !CreateBinary(BinaryOperationType.LESS, right, left);
+            return CreateBinary(BinaryOperationType.GREATEREQ, left, right);
         }
         public static ELExpression operator >=(ELExpression left, long right)
             => left >= left.compiler.MakeConst(right);

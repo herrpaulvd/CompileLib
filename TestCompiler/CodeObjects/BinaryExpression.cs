@@ -61,6 +61,7 @@ namespace TestCompiler.CodeObjects
                 if (!rtype.IsIntegerType(name2class))
                     throw new CompilationError("Integer type is required", Right.Line, Right.Column);
                 local.Value = rexpr.Cast(ELType.UInt64);
+                compilation.Compiler.MarkLabel(label);
                 return local;
             }
             else if(Operation == "==" || Operation == "!=")
@@ -80,6 +81,53 @@ namespace TestCompiler.CodeObjects
                 }
 
                 throw new CompilationError("Cannot compare two values", Line, Column);
+            }
+            else if(Operation == "&" || Operation == "|" || Operation == "^")
+            {
+                var lexpr = Left.CompileRight(compilation);
+                var ltype = Left.Type;
+                var rexpr = Right.CompileRight(compilation);
+                var rtype = Right.Type;
+                type = new TypeExpression(-1, -1, "uint64", 0);
+
+                if(!ltype.IsIntegerType(name2class))
+                    throw new CompilationError("Integer type is required", Left.Line, Left.Column);
+                if(!rtype.IsIntegerType(name2class))
+                    throw new CompilationError("Integer type is required", Right.Line, Right.Column);
+                switch(Operation)
+                {
+                    case "&":
+                        return lexpr & rexpr;
+                    case "|":
+                        return lexpr | rexpr;
+                    case "^":
+                        return lexpr ^ rexpr;
+                    default:
+                        throw new NotImplementedException();
+                }
+            }
+            else if(Operation == "<<" || Operation == ">>")
+            {
+                var lexpr = Left.CompileRight(compilation);
+                var ltype = Left.Type;
+                var rexpr = Right.CompileRight(compilation);
+                var rtype = Right.Type;
+                var tl = name2class[ltype.ClassName];
+                type = new TypeExpression(-1, -1, tl.IsSigned ? "int64" : "uint64", 0);
+
+                if (!ltype.IsIntegerType(name2class))
+                    throw new CompilationError("Integer type is required", Left.Line, Left.Column);
+                if (!rtype.IsIntegerType(name2class))
+                    throw new CompilationError("Integer type is required", Right.Line, Right.Column);
+                switch (Operation)
+                {
+                    case "<<":
+                        return lexpr.ShiftLeft(rexpr);
+                    case ">>":
+                        return lexpr.ShiftRight(rexpr);
+                    default:
+                        throw new NotImplementedException();
+                }
             }
             else
             {
@@ -125,6 +173,8 @@ namespace TestCompiler.CodeObjects
                             return lexpr - rexpr;
                         case "/":
                             return lexpr / rexpr;
+                        case "%":
+                            return lexpr % rexpr;
                         case "*":
                             return lexpr * rexpr;
                         case "<":

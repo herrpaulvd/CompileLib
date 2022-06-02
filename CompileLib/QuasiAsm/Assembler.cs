@@ -23,7 +23,16 @@ namespace CompileLib.QuasiAsm
         public static readonly AsmFixedOperation SUB = new(AsmSenderRequired.Pair, "SUB");
         public static readonly AsmFixedOperation MUL = new(AsmSenderRequired.Pair, "MUL");
         public static readonly AsmFixedOperation DIV = new(AsmSenderRequired.Pair, "DIV");
+        public static readonly AsmFixedOperation MOD = new(AsmSenderRequired.Pair, "MOD");
         public static readonly AsmFixedOperation LESS = new(AsmSenderRequired.Pair, "LESS");
+        public static readonly AsmFixedOperation GREATER = new(AsmSenderRequired.Pair, "GREATER");
+        public static readonly AsmFixedOperation LESSEQ = new(AsmSenderRequired.Pair, "LESSEQ");
+        public static readonly AsmFixedOperation GREATEREQ = new(AsmSenderRequired.Pair, "GREATEREQ");
+        public static readonly AsmFixedOperation AND = new(AsmSenderRequired.Pair, "AND"); // TODO
+        public static readonly AsmFixedOperation OR = new(AsmSenderRequired.Pair, "OR"); // TODO
+        public static readonly AsmFixedOperation XOR = new(AsmSenderRequired.Pair, "XOR"); // TODO
+        public static readonly AsmFixedOperation SL = new(AsmSenderRequired.Pair, "SL"); // TODO
+        public static readonly AsmFixedOperation SR = new(AsmSenderRequired.Pair, "SR"); // TODO
         public static readonly AsmFixedOperation GOTOIF = new(AsmSenderRequired.Pair, "GOTOIF"); // condition + label
         // label is const AsmOperand, is the number to where go
 

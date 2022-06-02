@@ -13,7 +13,16 @@ namespace CompileLib.EmbeddedLanguage
         SUB,
         MUL,
         DIV,
-        LESS
+        MOD,
+        LESS,
+        GREATER,
+        LESSEQ,
+        GREATEREQ,
+        AND,
+        OR,
+        XOR,
+        SL,
+        SR
     }
 
     internal class ELBinaryOperation : ELExpression
@@ -39,6 +48,25 @@ namespace CompileLib.EmbeddedLanguage
             return null;
         }
 
+        private static ELType? CheckBitArithmetic(ELType left, ELType right)
+        {
+            if ((left.IsAssignableTo(ELType.Int64) || left.IsAssignableTo(ELType.UInt64))
+                && (right.IsAssignableTo(ELType.Int64) || right.IsAssignableTo(ELType.UInt64)))
+                return ELType.UInt64;
+            return null;
+        }
+
+        private static ELType? CheckShiftArithmetic(ELType left, ELType right)
+        {
+            if (!right.IsAssignableTo(ELType.Int64) && !right.IsAssignableTo(ELType.UInt64))
+                return null;
+            if(left.IsAssignableTo(ELType.Int64))
+                return ELType.Int64;
+            if(left.IsAssignableTo(ELType.UInt64))
+                return ELType.UInt64;
+            return null;
+        }
+
         public ELBinaryOperation(ELExpression left, ELExpression right, BinaryOperationType operation)
             : base(left.compiler)
         {
@@ -54,8 +82,19 @@ namespace CompileLib.EmbeddedLanguage
                     => CheckCommonArithmetic(l, r) ?? CheckPointerArithmetic(l, r) ?? throw new ArgumentException($"Incompatible types: {left.Type} and {right.Type}"),
                 BinaryOperationType.MUL
                 or BinaryOperationType.DIV
+                or BinaryOperationType.MOD
                 or BinaryOperationType.LESS
+                or BinaryOperationType.GREATER
+                or BinaryOperationType.LESSEQ
+                or BinaryOperationType.GREATEREQ
                     => CheckCommonArithmetic(l, r) ?? throw new ArgumentException($"Incompatible types: {left.Type} and {right.Type}"),
+                BinaryOperationType.AND
+                or BinaryOperationType.OR
+                or BinaryOperationType.XOR
+                    => CheckBitArithmetic(l, r) ?? throw new ArgumentException($"Incompatible types: {left.Type} and {right.Type}"),
+                BinaryOperationType.SL
+                or BinaryOperationType.SR
+                    => CheckShiftArithmetic(l, r) ?? throw new ArgumentException($"Incompatible types: {left.Type} and {right.Type}"),
                 _
                     => throw new NotImplementedException()
             };

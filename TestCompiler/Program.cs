@@ -37,7 +37,7 @@ try
     var global = engine.ParseFile<GlobalScope>(args.Length > 0 ? args[0] : PromptInput("Input file: "));
     global?.Compile(args.Length > 1 ? args[1] : PromptInput("Output file: "));
 }
-catch(Exception ex)
+catch(ArgumentNullException ex)
 {
     Console.WriteLine(ex.Message);
     return;
