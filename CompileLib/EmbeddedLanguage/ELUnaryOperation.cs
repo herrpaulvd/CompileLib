@@ -21,12 +21,19 @@ namespace CompileLib.EmbeddedLanguage
 
         public override ELType Type => type;
 
-        private static ELType? CheckCommonArithmetic(ELType operandType)
+        private static ELType? CheckIntegerArithmetic(ELType operandType)
         {
             if (operandType.IsAssignableTo(ELType.Int64))
                 return ELType.Int64;
             if (operandType.IsAssignableTo(ELType.UInt64))
                 return ELType.UInt64;
+            return null;
+        }
+
+        private static ELType? CheckFloatArithmetic(ELType operandType)
+        {
+            if (operandType.IsAssignableTo(ELType.Float64))
+                return ELType.Float64;
             return null;
         }
 
@@ -37,9 +44,10 @@ namespace CompileLib.EmbeddedLanguage
             type = operation switch
             {
                 UnaryOperationType.BOOLEAN_NOT 
-                or UnaryOperationType.NEG
                 or UnaryOperationType.BITWISE_NOT
-                    => CheckCommonArithmetic(ot) ?? throw new ArgumentException($"Invalid NOT operand type {ot}", nameof(operand)),
+                    => CheckIntegerArithmetic(ot) ?? throw new ArgumentException($"Invalid operand type {ot}", nameof(operand)),
+                UnaryOperationType.NEG
+                    => CheckIntegerArithmetic(ot) ?? CheckFloatArithmetic(ot) ?? throw new ArgumentException($"Invalid operand type {ot}", nameof(operand)),
                 _ => throw new NotImplementedException()
             };
             Operand = operand;

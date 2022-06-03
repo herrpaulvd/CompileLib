@@ -19,16 +19,18 @@ namespace TestCompiler.CodeObjects
         {
             var noMembers = Array.Empty<ClassMember>();
 
-            Class clVoid = new("void", noMembers, ELType.Void, false);
-            Class clInt8 = new("int8", noMembers, ELType.Int8, true);
-            Class clUInt8 = new("uint8", noMembers, ELType.UInt8, false);
-            Class clInt16 = new("int16", noMembers, ELType.Int16, true);
-            Class clUInt16 = new("uint16", noMembers, ELType.UInt16, false);
-            Class clChar = new("char", noMembers, ELType.UInt16, false);
-            Class clInt32 = new("int32", noMembers, ELType.Int32, true);
-            Class clUInt32 = new("uint32", noMembers, ELType.UInt32, false);
-            Class clInt64 = new("int64", noMembers, ELType.Int64, true);
-            Class clUInt64 = new("uint64", noMembers, ELType.UInt64, false);
+            Class clVoid = new("void", noMembers, ELType.Void, false, false);
+            Class clInt8 = new("int8", noMembers, ELType.Int8, true, false);
+            Class clUInt8 = new("uint8", noMembers, ELType.UInt8, false, false);
+            Class clInt16 = new("int16", noMembers, ELType.Int16, true, false);
+            Class clUInt16 = new("uint16", noMembers, ELType.UInt16, false, false);
+            Class clChar = new("char", noMembers, ELType.UInt16, false, false);
+            Class clInt32 = new("int32", noMembers, ELType.Int32, true, false);
+            Class clUInt32 = new("uint32", noMembers, ELType.UInt32, false, false);
+            Class clInt64 = new("int64", noMembers, ELType.Int64, true, false);
+            Class clUInt64 = new("uint64", noMembers, ELType.UInt64, false, false);
+            Class clFloat32 = new("float32", noMembers, ELType.Float32, true, true);
+            Class clFloat64 = new("float64", noMembers, ELType.Float64, true, true);
 
             // TODO: add I/O methods
             ELCompiler compiler = new ELCompilerBuilder()
@@ -98,7 +100,7 @@ namespace TestCompiler.CodeObjects
                 methodReadLine
             };
 
-            Class system = new("System", sysmembers, ELType.PVoid, false);
+            Class system = new("System", sysmembers, ELType.PVoid, false, false);
 
 
             return (compiler, new Class[]
@@ -113,6 +115,8 @@ namespace TestCompiler.CodeObjects
                 clInt64,
                 clUInt64,
                 clChar,
+                clFloat32,
+                clFloat64,
                 system
             });
         }

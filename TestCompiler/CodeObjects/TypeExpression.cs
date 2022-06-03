@@ -74,7 +74,9 @@ namespace TestCompiler.CodeObjects
             {
                 var t1 = resolvedClass.TargetType;
                 var t2 = other.resolvedClass.TargetType;
-                return resolvedClass.IsSigned == other.resolvedClass.IsSigned && t1.Size <= t2.Size;
+                return resolvedClass.IsSigned == other.resolvedClass.IsSigned 
+                    && resolvedClass.IsFloat == other.resolvedClass.IsFloat
+                    && t1.Size <= t2.Size;
             }
             return false;
         }
@@ -91,7 +93,13 @@ namespace TestCompiler.CodeObjects
         public bool IsIntegerType(SortedDictionary<string, Class> name2class)
         {
             GetResolvedType(name2class);
-            return !IsVoid() && resolvedClass.IsPredefined;
+            return !IsVoid() && resolvedClass.IsPredefined && !resolvedClass.IsFloat;
+        }
+
+        public bool IsFloatType(SortedDictionary<string, Class> name2class)
+        {
+            GetResolvedType(name2class);
+            return !IsVoid() && resolvedClass.IsPredefined && resolvedClass.IsFloat;
         }
     }
 }

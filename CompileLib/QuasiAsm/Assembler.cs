@@ -28,13 +28,27 @@ namespace CompileLib.QuasiAsm
         public static readonly AsmFixedOperation GREATER = new(AsmSenderRequired.Pair, "GREATER");
         public static readonly AsmFixedOperation LESSEQ = new(AsmSenderRequired.Pair, "LESSEQ");
         public static readonly AsmFixedOperation GREATEREQ = new(AsmSenderRequired.Pair, "GREATEREQ");
-        public static readonly AsmFixedOperation AND = new(AsmSenderRequired.Pair, "AND"); // TODO
-        public static readonly AsmFixedOperation OR = new(AsmSenderRequired.Pair, "OR"); // TODO
-        public static readonly AsmFixedOperation XOR = new(AsmSenderRequired.Pair, "XOR"); // TODO
-        public static readonly AsmFixedOperation SL = new(AsmSenderRequired.Pair, "SL"); // TODO
-        public static readonly AsmFixedOperation SR = new(AsmSenderRequired.Pair, "SR"); // TODO
+        public static readonly AsmFixedOperation AND = new(AsmSenderRequired.Pair, "AND");
+        public static readonly AsmFixedOperation OR = new(AsmSenderRequired.Pair, "OR");
+        public static readonly AsmFixedOperation XOR = new(AsmSenderRequired.Pair, "XOR");
+        public static readonly AsmFixedOperation SL = new(AsmSenderRequired.Pair, "SL");
+        public static readonly AsmFixedOperation SR = new(AsmSenderRequired.Pair, "SR");
         public static readonly AsmFixedOperation GOTOIF = new(AsmSenderRequired.Pair, "GOTOIF"); // condition + label
-        // label is const AsmOperand, is the number to where go
+
+        public static readonly AsmFixedOperation FADD = new(AsmSenderRequired.Pair, "FADD");
+        public static readonly AsmFixedOperation FSUB = new(AsmSenderRequired.Pair, "FSUB");
+        public static readonly AsmFixedOperation FMUL = new(AsmSenderRequired.Pair, "FMUL");
+        public static readonly AsmFixedOperation FDIV = new(AsmSenderRequired.Pair, "FDIV");
+        public static readonly AsmFixedOperation FEQ = new(AsmSenderRequired.Pair, "FEQ");
+        public static readonly AsmFixedOperation FNEQ = new(AsmSenderRequired.Pair, "FNEQ");
+        public static readonly AsmFixedOperation FLESS = new(AsmSenderRequired.Pair, "FLESS");
+        public static readonly AsmFixedOperation FGREATER = new(AsmSenderRequired.Pair, "FGREATER");
+        public static readonly AsmFixedOperation FLESSEQ = new(AsmSenderRequired.Pair, "FLESSEQ");
+        public static readonly AsmFixedOperation FGREATEREQ = new(AsmSenderRequired.Pair, "FGREATEREQ");
+        public static readonly AsmFixedOperation FNEG = new(AsmSenderRequired.Single, "FNEG");
+        public static readonly AsmFixedOperation FTOI = new(AsmSenderRequired.Single, "FTOI");
+        public static readonly AsmFixedOperation ITOF = new(AsmSenderRequired.Single, "ITOF");
+        public static readonly AsmFixedOperation FMOV = new(AsmSenderRequired.Single, "FMOV");
 
         private List<AsmOperand> globals = new();
         private List<long> consts = new();

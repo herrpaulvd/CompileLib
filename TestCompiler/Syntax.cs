@@ -11,7 +11,7 @@ using TestCompiler.CodeObjects;
 
 namespace TestCompiler
 {
-    internal class Syntax
+    internal class Syntax // TODO: float32 and float64
     {
         public class SignatureStart
         {
@@ -281,7 +281,7 @@ namespace TestCompiler
 
         [SetTag("expr-atom")]
         public static Expression ReadConst(
-            [RequireTags("int10", "int16", "int8", "int2", "str", "char")] Token token
+            [RequireTags("int10", "int16", "int8", "int2", "str", "char", "float")] Token token
             )
         {
             return new ConstExpression(token.Self, token.Tag, token.Line, token.Column);

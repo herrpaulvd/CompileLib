@@ -118,6 +118,8 @@ namespace CompileLib.EmbeddedLanguage
         public ELExpression MakeConst(ulong value) => AddExpression(new ELIntegerConst(this, value), globalContext);
         public ELExpression MakeConst(int value) => AddExpression(new ELIntegerConst(this, value), globalContext);
         public ELExpression MakeConst(uint value) => AddExpression(new ELIntegerConst(this, value), globalContext);
+        public ELExpression MakeConst(float value) => AddExpression(new ELFloatConst(this, value), globalContext);
+        public ELExpression MakeConst(double value) => AddExpression(new ELFloatConst(this, value), globalContext);
 
         private ELExpression? nullptr;
         public ELExpression NULLPTR
@@ -170,29 +172,6 @@ namespace CompileLib.EmbeddedLanguage
 
             foreach(var e in exprs)
             {
-                /*
-                 * TODO: list of exprs to perform
-                 * 
-                 * NB!!! label
-                 * 
-                 * binary +
-                 * cast +
-                 * copy +
-                 * fieldref +
-                 * funcall +
-                 * goto + gotoif +
-                 * int const +
-                 * reference +
-                 * ref expr +
-                 * return +
-                 * unary +
-                 * variable +
-                 * less +
-                 * 
-                 * init data +
-                 * 
-                 */
-
                 AsmOperand MakeReference(AsmOperand op)
                 {
                     if (op.IsDeref())
@@ -248,6 +227,29 @@ namespace CompileLib.EmbeddedLanguage
                     else if(e is ELIntegerConst c)
                     {
                         expr2operand[e.ID] = assembler.AddConst(c.SignedValue, t is ELAtomType a0 && a0.Signed, t.Size, t);
+                    }
+                    else if(e is ELFloatConst cf)
+                    {
+                        long l = 0;
+                        if(t.Size == 4)
+                        {
+                            unsafe
+                            {
+                                float* ptrl = (float*)(void*)&l;
+                                *ptrl = (float)cf.Value;
+                            }
+                        }
+                        else
+                        {
+                            unsafe
+                            {
+                                double* ptrl = (double*)(void*)&l;
+                                *ptrl = cf.Value;
+                            }
+                        }
+                        var theConst = assembler.AddConst(l, false, t.Size, t);
+                        expr2operand[e.ID] = assembler.AddGlobal(false, false, t.Size, t);
+                        asmf[0].AddOperation(Assembler.MOV, expr2operand[e.ID], theConst);
                     }
                 }
                 else
@@ -305,10 +307,77 @@ namespace CompileLib.EmbeddedLanguage
                     else if (e is ELCastExpression cast)
                     {
                         expr2operand[e.ID] = f.AddLocal(t is ELStructType, t is ELAtomType a0 && a0.Signed, t.Size, t);
-                        f.AddOperation(
-                            Assembler.MOV,
-                            expr2operand[e.ID],
-                            expr2operand[cast.Operand.ID]);
+
+                        bool oldFloat = cast.Operand.Type is ELAtomType a1 && a1.Float;
+                        bool newFloat = t is ELAtomType a2 && a2.Float;
+
+                        if(oldFloat)
+                        {
+                            if(newFloat)
+                            {
+                                if(cast.Operand.Type.Size == t.Size)
+                                {
+                                    f.AddOperation(
+                                        Assembler.MOV,
+                                        expr2operand[e.ID],
+                                        expr2operand[cast.Operand.ID]);
+                                }
+                                else
+                                {
+                                    f.AddOperation(
+                                        Assembler.FMOV,
+                                        expr2operand[e.ID],
+                                        expr2operand[cast.Operand.ID]);
+                                }
+                            }
+                            else
+                            {
+                                if(cast.Operand.Type.Size == 1)
+                                {
+                                    AsmOperand to = f.AddLocal(false, cast.Operand.Type is ELAtomType a3 && a3.Signed, 2, cast.Operand.Type);
+                                    f.AddOperation(
+                                        Assembler.FTOI,
+                                        to,
+                                        expr2operand[cast.Operand.ID]);
+                                    f.AddOperation(Assembler.MOV, expr2operand[e.ID], to);
+                                }
+                                else
+                                {
+                                    f.AddOperation(
+                                        Assembler.FTOI,
+                                        expr2operand[e.ID],
+                                        expr2operand[cast.Operand.ID]);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if(newFloat)
+                            {
+                                AsmOperand from;
+                                if(cast.Operand.Type.Size == 1 || expr2operand[cast.Operand.ID].IsConst())
+                                {
+                                    from = f.AddLocal(false, cast.Operand.Type is ELAtomType a3 && a3.Signed, Math.Max(2, cast.Operand.Type.Size), cast.Operand.Type);
+                                    f.AddOperation(Assembler.MOV, from, expr2operand[cast.Operand.ID]);
+                                }
+                                else
+                                {
+                                    from = expr2operand[cast.Operand.ID];
+                                }
+
+                                f.AddOperation(
+                                    Assembler.ITOF,
+                                    expr2operand[e.ID],
+                                    from);
+                            }
+                            else
+                            {
+                                f.AddOperation(
+                                    Assembler.MOV,
+                                    expr2operand[e.ID],
+                                    expr2operand[cast.Operand.ID]);
+                            }
+                        }
                     }
                     else if (e is ELCopy copy)
                     {
@@ -350,7 +419,7 @@ namespace CompileLib.EmbeddedLanguage
                         f.AddOperation(
                             unary.Operation switch
                             {
-                                UnaryOperationType.NEG => Assembler.NEG,
+                                UnaryOperationType.NEG => t.IsAssignableTo(ELType.Float64) ? Assembler.FNEG : Assembler.NEG,
                                 UnaryOperationType.BITWISE_NOT => Assembler.BITWISE_NOT,
                                 UnaryOperationType.BOOLEAN_NOT => Assembler.BOOLEAN_NOT,
                                 _ => throw new NotImplementedException()
@@ -399,13 +468,34 @@ namespace CompileLib.EmbeddedLanguage
                                     expr2operand[binary.Left.ID],
                                     right);
                             }
+                            else if(binary.Left.Type is ELAtomType at && at.Float)
+                            {
+                                f.AddOperation(
+                                    binary.Operation switch
+                                    {
+                                        BinaryOperationType.ADD => Assembler.FADD,
+                                        BinaryOperationType.SUB => Assembler.FSUB,
+                                        BinaryOperationType.MUL => Assembler.FMUL,
+                                        BinaryOperationType.DIV => Assembler.FDIV,
+                                        BinaryOperationType.LESS => Assembler.FLESS,
+                                        BinaryOperationType.GREATER => Assembler.FGREATER,
+                                        BinaryOperationType.LESSEQ => Assembler.FLESSEQ,
+                                        BinaryOperationType.GREATEREQ => Assembler.FGREATEREQ,
+                                        BinaryOperationType.EQ => Assembler.FEQ,
+                                        BinaryOperationType.NEQ => Assembler.FNEQ,
+                                        _ => throw new NotImplementedException()
+                                    },
+                                    expr2operand[e.ID],
+                                    expr2operand[binary.Left.ID],
+                                    expr2operand[binary.Right.ID]);
+                            }
                             else
                             {
                                 f.AddOperation(
                                     binary.Operation switch
                                     {
                                         BinaryOperationType.ADD => Assembler.ADD,
-                                        BinaryOperationType.SUB => Assembler.SUB,
+                                        BinaryOperationType.SUB or BinaryOperationType.EQ or BinaryOperationType.NEQ => Assembler.SUB,
                                         BinaryOperationType.MUL => Assembler.MUL,
                                         BinaryOperationType.DIV => Assembler.DIV,
                                         BinaryOperationType.MOD => Assembler.MOD,
@@ -423,6 +513,10 @@ namespace CompileLib.EmbeddedLanguage
                                     expr2operand[e.ID],
                                     expr2operand[binary.Left.ID],
                                     expr2operand[binary.Right.ID]);
+                                if(binary.Operation == BinaryOperationType.EQ)
+                                {
+                                    f.AddOperation(Assembler.BOOLEAN_NOT, expr2operand[e.ID], expr2operand[e.ID]);
+                                }
                             }
                         }
                     }

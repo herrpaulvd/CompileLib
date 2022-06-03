@@ -15,6 +15,7 @@ try
         .AddToken("int16", @"0x[[:xdigit:]]+")
         .AddToken("int8", @"0[0-7]+")
         .AddToken("int2", @"0b[01]+")
+        .AddToken("float", @"([1-9][0-9]*|0)\.[0-9]*|\.[0-9]+")
         .AddToken(SpecialTags.TAG_SKIP, "[[:space:]]")
         .AddToken(SpecialTags.TAG_SKIP, @"//[^[:cntrl:]]*")
         .AddProductions<Syntax>()

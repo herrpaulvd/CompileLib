@@ -40,7 +40,7 @@ namespace TestCompiler.CodeObjects
                 var rtype = Right.Type;
 
                 if (!rtype.IsAssignableTo(ltype, name2class))
-                    throw new CompilationError("Incompatible types when assignation", Line, Column);
+                    throw new CompilationError("Incompatible types to assign", Line, Column);
                 type = ltype;
                 lexpr.Value = rexpr;
                 return lexpr;
@@ -71,7 +71,7 @@ namespace TestCompiler.CodeObjects
                 var rexpr = Right.CompileRight(compilation);
                 var rtype = Right.Type;
                 var tl = name2class[ltype.ClassName];
-                type = new TypeExpression(-1, -1, tl.IsSigned ? "int64" : "uint64", 0);
+                type = new TypeExpression(-1, -1, "uint64", 0);
 
                 if(ltype.IsAssignableTo(rtype, name2class) || rtype.IsAssignableTo(ltype, name2class))
                 {
@@ -136,7 +136,6 @@ namespace TestCompiler.CodeObjects
                 var rexpr = Right.CompileRight(compilation);
                 var rtype = Right.Type;
                 var tl = name2class[ltype.ClassName];
-                type = new TypeExpression(-1, -1, tl.IsSigned ? "int64" : "uint64", 0);
 
                 if (ltype.PointerDepth > 0)
                 {
@@ -168,22 +167,65 @@ namespace TestCompiler.CodeObjects
                     switch(Operation)
                     {
                         case "+":
+                            type = new TypeExpression(-1, -1, tl.IsSigned ? "int64" : "uint64", 0);
                             return lexpr + rexpr;
                         case "-":
+                            type = new TypeExpression(-1, -1, tl.IsSigned ? "int64" : "uint64", 0);
                             return lexpr - rexpr;
                         case "/":
+                            type = new TypeExpression(-1, -1, tl.IsSigned ? "int64" : "uint64", 0);
                             return lexpr / rexpr;
                         case "%":
+                            type = new TypeExpression(-1, -1, tl.IsSigned ? "int64" : "uint64", 0);
                             return lexpr % rexpr;
                         case "*":
+                            type = new TypeExpression(-1, -1, tl.IsSigned ? "int64" : "uint64", 0);
                             return lexpr * rexpr;
                         case "<":
+                            type = new TypeExpression(-1, -1, "uint64", 0);
                             return lexpr < rexpr;
                         case ">":
+                            type = new TypeExpression(-1, -1, "uint64", 0);
                             return lexpr > rexpr;
                         case "<=":
+                            type = new TypeExpression(-1, -1, "uint64", 0);
                             return lexpr <= rexpr;
                         case ">=":
+                            type = new TypeExpression(-1, -1, "uint64", 0);
+                            return lexpr >= rexpr;
+                    }
+                }
+
+                if (ltype.IsFloatType(name2class))
+                {
+                    if (!rtype.IsFloatType(name2class))
+                        throw new CompilationError("Float type is required", Right.Line, Right.Column);
+
+                    switch (Operation)
+                    {
+                        case "+":
+                            type = new TypeExpression(-1, -1, "float64", 0);
+                            return lexpr + rexpr;
+                        case "-":
+                            type = new TypeExpression(-1, -1, "float64", 0);
+                            return lexpr - rexpr;
+                        case "/":
+                            type = new TypeExpression(-1, -1, "float64", 0);
+                            return lexpr / rexpr;
+                        case "*":
+                            type = new TypeExpression(-1, -1, "float64", 0);
+                            return lexpr * rexpr;
+                        case "<":
+                            type = new TypeExpression(-1, -1, "uint64", 0);
+                            return lexpr < rexpr;
+                        case ">":
+                            type = new TypeExpression(-1, -1, "uint64", 0);
+                            return lexpr > rexpr;
+                        case "<=":
+                            type = new TypeExpression(-1, -1, "uint64", 0);
+                            return lexpr <= rexpr;
+                        case ">=":
+                            type = new TypeExpression(-1, -1, "uint64", 0);
                             return lexpr >= rexpr;
                     }
                 }

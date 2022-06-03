@@ -826,11 +826,11 @@ namespace CompileLib.QuasiAsm
                             }
                             else if (t == Assembler.LESSEQ)
                             {
-                                writeb(0x43); // cmovae
+                                writeb(0x46); // cmovbe
                             }
                             else if (t == Assembler.GREATEREQ)
                             {
-                                writeb(0x46); // cmovbe
+                                writeb(0x43); // cmovae
                             }
                             else throw new NotImplementedException();
                         }
@@ -849,6 +849,227 @@ namespace CompileLib.QuasiAsm
                         );
                         writell(4); // jnz label
                         jumps.Add(new(output.Count, label, true, 4));
+                    }
+                    else if(t == Assembler.FADD)
+                    {
+                        var (a, b) = GetPair();
+                        var c = op.Destination;
+                        int asize = a.Size;
+                        int bsize = b.Size;
+                        int csize = c.Size;
+                        a = upOperand(a);
+                        b = upOperand(b);
+                        c = upOperand(c);
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RBX);
+                        movRV(c, ID_RCX);
+                        writearr(
+                            (byte)(asize == 4 ? 0xD9 : 0xDD), 0x00, // fld [RAX]
+                            (byte)(bsize == 4 ? 0xD8 : 0xDC), 0x03, // fadd [RBX]
+                            (byte)(csize == 4 ? 0xD9 : 0xDD), 0x19 // fstp [RCX]
+                        );
+                    }
+                    else if(t == Assembler.FSUB)
+                    {
+                        var (a, b) = GetPair();
+                        var c = op.Destination;
+                        int asize = a.Size;
+                        int bsize = b.Size;
+                        int csize = c.Size;
+                        a = upOperand(a);
+                        b = upOperand(b);
+                        c = upOperand(c);
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RBX);
+                        movRV(c, ID_RCX);
+                        writearr(
+                            (byte)(asize == 4 ? 0xD9 : 0xDD), 0x00, // fld [RAX]
+                            (byte)(bsize == 4 ? 0xD8 : 0xDC), 0x23, // fsub [RBX]
+                            (byte)(csize == 4 ? 0xD9 : 0xDD), 0x19 // fstp [RCX]
+                        );
+                    }
+                    else if(t == Assembler.FMUL)
+                    {
+                        var (a, b) = GetPair();
+                        var c = op.Destination;
+                        int asize = a.Size;
+                        int bsize = b.Size;
+                        int csize = c.Size;
+                        a = upOperand(a);
+                        b = upOperand(b);
+                        c = upOperand(c);
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RBX);
+                        movRV(c, ID_RCX);
+                        writearr(
+                            (byte)(asize == 4 ? 0xD9 : 0xDD), 0x00, // fld [RAX]
+                            (byte)(bsize == 4 ? 0xD8 : 0xDC), 0x0B, // fmul [RBX]
+                            (byte)(csize == 4 ? 0xD9 : 0xDD), 0x19 // fstp [RCX]
+                        );
+                    }
+                    else if(t == Assembler.FDIV)
+                    {
+                        var (a, b) = GetPair();
+                        var c = op.Destination;
+                        int asize = a.Size;
+                        int bsize = b.Size;
+                        int csize = c.Size;
+                        a = upOperand(a);
+                        b = upOperand(b);
+                        c = upOperand(c);
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RBX);
+                        movRV(c, ID_RCX);
+                        writearr(
+                            (byte)(asize == 4 ? 0xD9 : 0xDD), 0x00, // fld [RAX]
+                            (byte)(bsize == 4 ? 0xD8 : 0xDC), 0x33, // fdiv [RBX]
+                            (byte)(csize == 4 ? 0xD9 : 0xDD), 0x19 // fstp [RCX]
+                        );
+                    }
+                    else if(t == Assembler.FMOV)
+                    {
+                        var a = GetSingle();
+                        var c = op.Destination;
+                        int asize = a.Size;
+                        int csize = c.Size;
+                        a = upOperand(a);
+                        c = upOperand(c);
+                        movRV(a, ID_RAX);
+                        movRV(c, ID_RCX);
+                        writearr(
+                            (byte)(asize == 4 ? 0xD9 : 0xDD), 0x00, // fld [RAX]
+                            (byte)(csize == 4 ? 0xD9 : 0xDD), 0x19 // fstp [RCX]
+                        );
+                    }
+                    else if(t == Assembler.FNEG)
+                    {
+                        var a = GetSingle();
+                        var c = op.Destination;
+                        int asize = a.Size;
+                        int csize = c.Size;
+                        a = upOperand(a);
+                        c = upOperand(c);
+                        movRV(a, ID_RAX);
+                        movRV(c, ID_RCX);
+                        writearr(
+                            (byte)(asize == 4 ? 0xD9 : 0xDD), 0x00, // fld [RAX]
+                            0xD9, 0xE0, // fchs
+                            (byte)(csize == 4 ? 0xD9 : 0xDD), 0x19 // fstp [RCX]
+                        );
+                    }
+                    else if(t == Assembler.FTOI)
+                    {
+                        var a = GetSingle();
+                        var c = op.Destination;
+                        int asize = a.Size;
+                        int csize = c.Size;
+                        a = upOperand(a);
+                        c = upOperand(c);
+                        movRV(a, ID_RAX);
+                        movRV(c, ID_RCX);
+                        writeb((byte)(asize == 4 ? 0xD9 : 0xDD));
+                        writeb(0x00); // fld [RAX]
+                        switch(csize) // fistp ? PTR [RCX]
+                        {
+                            case 2:
+                                writeb(0xDF);
+                                writeb(0x19);
+                                break;
+                            case 4:
+                                writeb(0xDB);
+                                writeb(0x19);
+                                break;
+                            case 8:
+                                writeb(0xDF);
+                                writeb(0x39);
+                                break;
+                            default:
+                                throw new NotImplementedException();
+                        }
+                    }
+                    else if(t == Assembler.ITOF)
+                    {
+                        var a = GetSingle();
+                        var c = op.Destination;
+                        int asize = a.Size;
+                        int csize = c.Size;
+                        a = upOperand(a);
+                        c = upOperand(c);
+                        movRV(a, ID_RAX);
+                        movRV(c, ID_RCX);
+                        switch (csize) // fild ? PTR [RAX]
+                        {
+                            case 2:
+                                writeb(0xDF);
+                                writeb(0x00);
+                                break;
+                            case 4:
+                                writeb(0xDB);
+                                writeb(0x00);
+                                break;
+                            case 8:
+                                writeb(0xDF);
+                                writeb(0x28);
+                                break;
+                            default:
+                                throw new NotImplementedException();
+                        }
+                        writeb((byte)(csize == 4 ? 0xD9 : 0xDD));
+                        writeb(0x19); // fstp [RCX]
+                    }
+                    else if(t == Assembler.FEQ 
+                        || t == Assembler.FNEQ 
+                        || t == Assembler.FLESS 
+                        || t == Assembler.FGREATER
+                        || t == Assembler.FLESSEQ
+                        || t == Assembler.FGREATEREQ)
+                    {
+                        var (a, b) = GetPair();
+                        int asize = a.Size;
+                        int bsize = b.Size;
+                        a = upOperand(a);
+                        b = upOperand(b);
+                        movRV(a, ID_RAX);
+                        movRV(b, ID_RBX);
+                        writearr(
+                            (byte)(bsize == 4 ? 0xD9 : 0xDD), 0x03, // fld [RBX]
+                            (byte)(asize == 4 ? 0xD9 : 0xDD), 0x00, // fld [RAX]
+                            0x48, 0x31, 0xC0, // xor rax, rax
+                            0x48, 0xC7, 0xC3, 0x01, 0x00, 0x00, 0x00, // mov rbx, 1
+                            0xDF, 0xF1 // fcomip st(0), st(1)
+                        );
+                        writeb(0x48);
+                        writeb(0x0F);
+                        if (t == Assembler.FEQ)
+                        {
+                            writeb(0x44); // cmove
+                        }
+                        else if (t == Assembler.FNEQ)
+                        {
+                            writeb(0x45); // cmovne
+                        }
+                        else if (t == Assembler.FLESS)
+                        {
+                            writeb(0x42); // cmovb
+                        }
+                        else if (t == Assembler.FGREATER)
+                        {
+                            writeb(0x47); // cmova
+                        }
+                        else if (t == Assembler.FLESSEQ)
+                        {
+                            writeb(0x46); // cmovbe
+                        }
+                        else if (t == Assembler.FGREATEREQ)
+                        {
+                            writeb(0x43); // cmovae
+                        }
+                        else throw new NotImplementedException();
+                        writearr(
+                            0xC3, // modr/m for (RAX, RBX)
+                            0xDD, 0xD8 // fstp ST(0)
+                        ); 
+                        movVR(op.Destination);
                     }
                     else if (t is AsmFunction f)
                     {

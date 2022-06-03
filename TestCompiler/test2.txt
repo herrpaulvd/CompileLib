@@ -4,6 +4,8 @@
 	private uint64 capacity;
 	private char[] buffer;
 
+	public uint64 Length() return size;
+
 	public static String ReadLine()
 	{
 		var String s = new;
@@ -99,30 +101,48 @@ class Program
 		String.FromInt(result).WriteLine();
 	}
 
+	private static void PrintFloat(char[] caption, float64 result)
+	{
+		var uint64 intpart = uint64(result);
+		var uint64 floatpart = uint64(float64(1000) * (result - float64(intpart)));
+
+		String.FromCharArray(caption).Write();
+		String.FromCharArray(": ").Write();
+		String.FromInt(intpart).Write();
+		String.FromCharArray(".").Write();
+		var String fpart = String.FromInt(floatpart);
+		for(var uint64 i = uint64(0); i < uint64(3) - fpart.Length(); i = i + uint64(1);)
+			String.FromCharArray("0").Write();
+		fpart.WriteLine();
+	}
+
 	public static void Main()
 	{
 		while(1)
 		{
-			var uint64 a = ReadInt("a");
-			var uint64 b = ReadInt("b");
-			PrintInt("a + b", a + b);
-			PrintInt("a - b", a - b);
-			PrintInt("a * b", a * b);
-			PrintInt("a / b", a / b);
-			PrintInt("a % b", a % b);
-			PrintInt("a & b", a & b);
-			PrintInt("a | b", a | b);
-			PrintInt("a ^ b", a ^ b);
-			PrintInt("a && b", a && b);
-			PrintInt("a || b", a || b);
-			PrintInt("a << b", a << b);
-			PrintInt("a >> b", a >> b);
+			var float64 a = float64(ReadInt("a"));
+			var float64 b = float64(ReadInt("b"));
+			PrintFloat("a + b", a + b);
+			PrintFloat("a - b", a - b);
+			PrintFloat("a * b", a * b);
+			PrintFloat("a / b", a / b);
+			//PrintInt("a % b", a % b);
+			//PrintInt("a & b", a & b);
+			//PrintInt("a | b", a | b);
+			//PrintInt("a ^ b", a ^ b);
+			//PrintInt("a && b", a && b);
+			//PrintInt("a || b", a || b);
+			//PrintInt("a << b", a << b);
+			//PrintInt("a >> b", a >> b);
 			PrintInt("a == b", a == b);
 			PrintInt("a != b", a != b);
 			PrintInt("a < b", a < b);
 			PrintInt("a > b", a > b);
 			PrintInt("a <= b", a <= b);
 			PrintInt("a >= b", a >= b);
+			//PrintInt("!a", !a);
+			//PrintInt("~a", ~a);
+			PrintFloat("-a", -a);
 		}
 	}
 }

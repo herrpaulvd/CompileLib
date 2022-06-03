@@ -9,14 +9,17 @@ namespace CompileLib.EmbeddedLanguage
     internal class ELAtomType : ELType
     {
         private bool signed;
+        private bool isfloat;
         private int size;
         public override int Size => size;
         public bool Signed => signed;
+        public bool Float => isfloat;
 
-        public ELAtomType(int size, bool signed)
+        public ELAtomType(int size, bool signed, bool isfloat)
         {
             this.size = size;
             this.signed = signed;
+            this.isfloat = isfloat;
         }
 
         public override bool Equals(object? obj)
@@ -31,12 +34,13 @@ namespace CompileLib.EmbeddedLanguage
         }
 
         public override bool IsAssignableTo(ELType type)
-            => size > 0 && type is ELAtomType other && signed == other.signed && size <= other.size;
+            => size > 0 && type is ELAtomType other && signed == other.signed && isfloat == other.isfloat && size <= other.size;
 
         public override string ToString()
         {
             if (size == 0) return "Void";
-            return (signed ? "Int" : "UInt") + (size * 8).ToString();
+            if (isfloat) return "Float" + (size * 8);
+            return (signed ? "Int" : "UInt") + (size * 8);
         }
     }
 }
