@@ -57,10 +57,10 @@ namespace CompileLib.ParserTools
     {
         private readonly LRAction[][] action;
         private readonly int[][] @goto;
-        private readonly (int, IErrorHandler)[] errorHandlers;
+        private readonly List<(int, IErrorHandler, int)>[] errorHandlers;
         private readonly Token finalToken;
 
-        public LRMachine(LRAction[][] action, int[][] @goto, (int, IErrorHandler)[] errorHandlers, Token finalToken)
+        public LRMachine(LRAction[][] action, int[][] @goto, List<(int, IErrorHandler, int)>[] errorHandlers, Token finalToken)
         {
             this.action = action;
             this.@goto = @goto;
@@ -74,40 +74,58 @@ namespace CompileLib.ParserTools
             states.Push(0);
             Stack<object?> elements = new();
 
-            void Perform(Token t)
+            void PushRange(IEnumerable<object?> basis, IEnumerable<int> savedStates)
+            {
+                foreach(var e in basis) elements.Push(e);
+                foreach(var i in savedStates) states.Push(i);
+            }
+
+            void Perform(Token t, bool errorAnyway = false)
             {
                 LRAction a;
-                if(t.Type < 0 || (a = action[states.Peek()][t.Type]).IsError)
+                if(errorAnyway || t.Type < 0 || (a = action[states.Peek()][t.Type]).IsError)
                 {
-                    var (count, handler) = errorHandlers[states.Peek()];
-                    var basis = new object?[count];
-                    for (int i = 0; i < count; i++)
+                    foreach(var (count, handler, errorNT) in errorHandlers[states.Peek()])
                     {
-                        basis[count - 1 - i] = elements.Pop();
+                        var basis = new object?[count];
+                        var savedStates = new int[count];
+                        for (int i = 0; i < count; i++)
+                        {
+                            basis[count - 1 - i] = elements.Pop();
+                            savedStates[count - 1 - i] = states.Pop();
+                        }
+                        var decider = new ErrorHandlingDecider(t);
+                        handler.Handle(basis, decider);
+                        switch (decider.Decision)
+                        {
+                            case ErrorHandlingDecision.Skip:
+                                PushRange(basis, savedStates);
+                                return;
+                            case ErrorHandlingDecision.Stop:
+                                throw new LRStopException(t);
+                            case ErrorHandlingDecision.Before:
+                                PushRange(basis, savedStates);
+                                Perform(decider.TokenArgument);
+                                Perform(t);
+                                return;
+                            case ErrorHandlingDecision.Instead:
+                                PushRange(basis, savedStates);
+                                Perform(decider.TokenArgument);
+                                return;
+                            case ErrorHandlingDecision.FoldAndRaise:
+                                states.Push(@goto[states.Peek()][errorNT]);
+                                elements.Push(decider.Argument);
+                                Perform(t, true);
+                                return;
+                            case ErrorHandlingDecision.NextHandler:
+                                PushRange(basis, savedStates);
+                                break; // exit switch but continue loop
+                            default:
+                                Debug.Fail("ErrorHandlingDecision.???");
+                                return;
+                        }
                     }
-                    var decider = new ErrorHandlingDecider(t);
-                    handler.Handle(basis, decider);
-                    for (int i = 0; i < count; i++)
-                    {
-                        elements.Push(basis[i]);
-                    }
-                    switch (decider.Decision)
-                    {
-                        case ErrorHandlingDecision.Skip:
-                            return;
-                        case ErrorHandlingDecision.Stop:
-                            throw new LRStopException(t);
-                        case ErrorHandlingDecision.Before:
-                            Perform(decider.Argument);
-                            Perform(t);
-                            return;
-                        case ErrorHandlingDecision.Instead:
-                            Perform(decider.Argument);
-                            return;
-                        default:
-                            Debug.Fail("ErrorHandlingDecision.???");
-                            return;
-                    }
+                    return;
                 }
 
                 switch(a.Type)

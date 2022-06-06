@@ -7,8 +7,6 @@ using System.Diagnostics;
 
 namespace CompileLib.ParserTools
 {
-    //using ActionOwnerPair = ValueTuple<LRAction, int>;
-
     internal class GrammarBuilder
     {
         private struct Production
@@ -443,7 +441,7 @@ namespace CompileLib.ParserTools
             List<(int, int)> parents = new();
             List<LRAction[]> actions = new();
             List<int[]> @goto = new();
-            List<(int, IErrorHandler)> errorHandlers = new();
+            List<List<(int, IErrorHandler, int)>> errorHandlers = new();
             Trie trie = new();
 
             int[] getWay(int list)
@@ -497,8 +495,8 @@ namespace CompileLib.ParserTools
                     currGoto[nt] = index;
                 }
 
-                int errorCount = 0;
-                IErrorHandler? errorHandler = null;
+                List<(int, IErrorHandler, int)> currHandlers = new();
+
                 foreach (var (prod, pos, c) in lists[i])
                 {
                     var start = productions[prod].Start;
@@ -543,19 +541,18 @@ namespace CompileLib.ParserTools
                     }
                     else
                     {
-                        // maybe conflict. resolve?
-                        if(errorHandler is null)
+                        var errorHandler = productions[prod].ErrorHandler;
+                        if (errorHandler is not null)
                         {
-                            errorHandler = productions[prod].ErrorHandler;
-                            if (errorHandler is not null)
-                                errorCount = pos;
+                            currHandlers.Add((pos, errorHandler, productions[prod].Start));
                         }
                     }
                 }
 
                 actions.Add(currActions);
                 @goto.Add(currGoto);
-                errorHandlers.Add((errorCount, errorHandler ?? DefaultErrorHandler.Instance));
+                currHandlers.Add((0, DefaultErrorHandler.Instance, -1));
+                errorHandlers.Add(currHandlers);
             }
 
             return new LRMachine(actions.ToArray(), @goto.ToArray(), errorHandlers.ToArray(), new Common.Token(~fictEOF, "", -1, -1));

@@ -23,6 +23,7 @@ try
 }
 catch(Exception ex)
 {
+    Console.WriteLine("There is an internal error:");
     Console.WriteLine(ex.Message);
     return;
 }
@@ -35,12 +36,25 @@ string PromptInput(string prompt)
 
 try
 {
+    Syntax.ErrorList.Clear();
     var global = engine.ParseFile<GlobalScope>(args.Length > 0 ? args[0] : PromptInput("Input file: "));
-    global?.Compile(args.Length > 1 ? args[1] : PromptInput("Output file: "));
+    if(Syntax.ErrorList.Empty())
+    {
+        global?.Compile(args.Length > 1 ? args[1] : PromptInput("Output file: "));
+    }
+    else
+    {
+        Console.WriteLine("There are errors:");
+        Console.WriteLine(Syntax.ErrorList);
+    }
 }
-catch(ArgumentNullException ex)
+catch(Exception ex)
 {
+    Console.WriteLine("There are errors:");
+    if (!Syntax.ErrorList.Empty()) Console.WriteLine(Syntax.ErrorList);
     Console.WriteLine(ex.Message);
     return;
 }
+
+Console.WriteLine("Successful compilation");
 

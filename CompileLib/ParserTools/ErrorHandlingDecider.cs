@@ -7,12 +7,17 @@ using CompileLib.Common;
 
 namespace CompileLib.ParserTools
 {
-    internal enum ErrorHandlingDecision { Skip, Stop, Before, Instead }
+    internal enum ErrorHandlingDecision { Skip, Stop, Before, Instead, FoldAndRaise, NextHandler }
 
     internal class ErrorHandlingDecider
     {
         public Token NextToken { get; }
-        public Token Argument { get; private set; }
+        public object? Argument { get; private set; }
+        public Token TokenArgument
+        {
+            get => (Token)Argument;
+            private set => Argument = value;
+        }
         public ErrorHandlingDecision Decision { get; private set; } = ErrorHandlingDecision.Stop;
 
         public ErrorHandlingDecider(Token nextToken)
@@ -29,13 +34,22 @@ namespace CompileLib.ParserTools
         public void PerformBefore(Token token)
         {
             Decision = ErrorHandlingDecision.Before;
-            Argument = token;
+            TokenArgument = token;
         }
 
         public void PerformInstead(Token token)
         {
             Decision = ErrorHandlingDecision.Instead;
-            Argument = token;
+            TokenArgument = token;
         }
+
+        public void FoldAndReraise(object? foldResult)
+        {
+            Decision = ErrorHandlingDecision.FoldAndRaise;
+            Argument = foldResult;
+        }
+
+        public void NextHandler()
+            => Decision = ErrorHandlingDecision.NextHandler;
     }
 }

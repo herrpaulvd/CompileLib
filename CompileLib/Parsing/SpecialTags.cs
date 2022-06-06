@@ -24,7 +24,7 @@ namespace CompileLib.Parsing
         /// </summary>
         public const string TAG_UNKNOWN = "*";
         /// <summary>
-        /// [Only as args in production methods] Tokens tagged with this are keywords
+        /// [Only as argument for Error Handling Decider] Tokens tagged with this are keywords
         /// </summary>
         public const string TAG_KEYWORD = "@";
         /// <summary>

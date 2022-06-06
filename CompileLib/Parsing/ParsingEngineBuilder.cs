@@ -146,11 +146,11 @@ namespace CompileLib.Parsing
             {
                 List<Production> result = new();
 
-                Production MakeCopy(object subTag)
+                Production MakeCopy(object subTag, bool hasErrorHandler)
                     => new()
                     {
                         Tag = subTag,
-                        HasErrorHandler = self.HasErrorHandler,
+                        HasErrorHandler = hasErrorHandler, // ???
                         Body = new(),
                         Handler = self.Handler,
                         Greedy = false,
@@ -167,7 +167,7 @@ namespace CompileLib.Parsing
                         HelperTag subTag = new(keywordsAttr);
                         foreach (var kw in keywordsAttr.Keywords)
                         {
-                            Production sub = MakeCopy(subTag);
+                            Production sub = MakeCopy(subTag, true);
                             result.Add(sub);
                             //sub.Body.Add(new ProductionBodyElement() { TagType = new KeywordsAttribute(kw), RepetitionCount = defaultSingleAttribute });
                             sub.Body.Add(e.ReplaceTags(new KeywordsAttribute(kw), defaultSingleAttribute));
@@ -183,7 +183,7 @@ namespace CompileLib.Parsing
                         HelperTag subTag = new(requireTagsAttr);
                         foreach (var tag in requireTagsAttr.Tags)
                         {
-                            Production sub = MakeCopy(subTag);
+                            Production sub = MakeCopy(subTag, true);
                             result.Add(sub);
                             //sub.Body.Add(new ProductionBodyElement() { TagType = new RequireTagsAttribute(tag), RepetitionCount = defaultSingleAttribute });
                             sub.Body.Add(e.ReplaceTags(new RequireTagsAttribute(tag), defaultSingleAttribute));
@@ -202,7 +202,7 @@ namespace CompileLib.Parsing
                     }
                 }
 
-                Production newThis = MakeCopy(self.Tag);
+                Production newThis = MakeCopy(self.Tag, self.HasErrorHandler);
                 result.Add(newThis);
 
                 for(int i = 0; i < self.Body.Count; )
@@ -218,8 +218,8 @@ namespace CompileLib.Parsing
                         List<string> subParamNames = new();
 
                         // empty production
-                        Production emptySub = MakeCopy(subTag);
-                        Production sub = MakeCopy(subTag);
+                        Production emptySub = MakeCopy(subTag, true);
+                        Production sub = MakeCopy(subTag, true);
                         sub.Greedy = optionalAttribute.Greedy;
                         sub.Divisor = 1;
                         sub.Body.Add(SplitBodyElement(self.Body[i]));
@@ -247,8 +247,8 @@ namespace CompileLib.Parsing
                         List<string> subParamNames = new();
 
                         // empty or non-rec production
-                        Production sub1 = MakeCopy(subTag);
-                        Production sub2 = MakeCopy(subTag);
+                        Production sub1 = MakeCopy(subTag, true);
+                        Production sub2 = MakeCopy(subTag, true);
                         var e = SplitBodyElement(self.Body[i]);
                         sub2.Body.Add(e);
                         if (!manyAttribute.CanBeEmpty) sub1.Body.Add(e);
@@ -555,10 +555,9 @@ namespace CompileLib.Parsing
 
             public IEnumerable<object?> Expand()
             {
-                if (children.Length == 0)
-                    return new object?[divisor];
-                else
+                if (children.Length == divisor)
                     return children;
+                return children.Concat(Enumerable.Repeat((object?)null, divisor - children.Length));
             }
         }
 
@@ -636,13 +635,14 @@ namespace CompileLib.Parsing
             {
                 List<object?> leaves = new();
                 GetLeaves(leaves);
-                
-                Debug.Assert(leaves.Count % divisor == 0);
-                int itemLength = leaves.Count / divisor;
 
                 var result = new object?[divisor];
                 for(int i = 0; i < divisor; i++)
+                {
+                    int itemLength = leaves.Count / divisor;
+                    if (i < leaves.Count % divisor) itemLength++;
                     result[i] = new UnknownArray(itemLength);
+                }
                 for(int i = 0; i < leaves.Count; i++)
                     (result[i % divisor] as UnknownArray)[i / divisor] = leaves[i];
                 return result;
@@ -735,7 +735,7 @@ namespace CompileLib.Parsing
             }
         }
 
-        private class OptionalProductionHandler : IProductionHandler
+        private class OptionalProductionHandler : IProductionHandler, IErrorHandler
         {
             private readonly int divisor;
 
@@ -748,9 +748,14 @@ namespace CompileLib.Parsing
             {
                 return new OptionalGroup(children, divisor);
             }
+
+            public void Handle(object?[] prefix, ParserTools.ErrorHandlingDecider decider)
+            {
+                decider.FoldAndReraise(new OptionalGroup(prefix, divisor));
+            }
         }
 
-        private class ManyProductionHandler : IProductionHandler
+        private class ManyProductionHandler : IProductionHandler, IErrorHandler
         {
             private readonly int divisor;
 
@@ -763,13 +768,23 @@ namespace CompileLib.Parsing
             {
                 return new ManyGroup(children, divisor);
             }
+
+            public void Handle(object?[] prefix, ParserTools.ErrorHandlingDecider decider)
+            {
+                decider.FoldAndReraise(new ManyGroup(prefix, divisor));
+            }
         }
 
-        private class IDFuncHandler : IProductionHandler
+        private class IDFuncHandler : IProductionHandler, IErrorHandler
         {
             public object? Handle(object?[] children)
             {
                 return children[0];
+            }
+
+            public void Handle(object?[] prefix, ParserTools.ErrorHandlingDecider decider)
+            {
+                decider.FoldAndReraise(null);
             }
 
             public static readonly IDFuncHandler Instance = new();
@@ -950,7 +965,7 @@ namespace CompileLib.Parsing
                                     singleID,
                                     new int[] { tagToIndex[tag] },
                                     IDFuncHandler.Instance,
-                                    null);
+                                    IDFuncHandler.Instance);
                                 addedProductionInfo.Add(htt);
                             }
                         }
@@ -963,7 +978,7 @@ namespace CompileLib.Parsing
                                     singleID,
                                     new int[] { GetIndexOfTag(tag) },
                                     IDFuncHandler.Instance,
-                                    null);
+                                    IDFuncHandler.Instance);
                                 addedProductionInfo.Add(htt);
                             }
                         }
@@ -982,16 +997,28 @@ namespace CompileLib.Parsing
                 }
 
                 IProductionHandler productionHandler;
-                IErrorHandler? errorHandler = null; // ???
+                IErrorHandler errorHandler;
 
                 if(p.Tag is HelperTag ht)
                 {
                     if (ht.ParentAttribute is OptionalAttribute)
-                        productionHandler = new OptionalProductionHandler(p.Divisor);
+                    {
+                        var h = new OptionalProductionHandler(p.Divisor);
+                        productionHandler = h;
+                        errorHandler = h;
+                    }
                     else if (ht.ParentAttribute is ManyAttribute)
-                        productionHandler = new ManyProductionHandler(p.Divisor);
+                    {
+                        var h = new ManyProductionHandler(p.Divisor);
+                        productionHandler = h;
+                        errorHandler = h;
+                    }
                     else
-                        productionHandler = IDFuncHandler.Instance;
+                    {
+                        var h = IDFuncHandler.Instance;
+                        productionHandler = h;
+                        errorHandler = h;
+                    }
                 }
                 else
                 {
