@@ -7,8 +7,14 @@ using CompileLib.Common;
 
 namespace CompileLib.ParserTools
 {
+    /// <summary>
+    /// Error handling decisions list
+    /// </summary>
     internal enum ErrorHandlingDecision { Skip, Stop, Before, Instead, FoldAndRaise, NextHandler }
 
+    /// <summary>
+    /// Internal class for object providing error handling decisions
+    /// </summary>
     internal class ErrorHandlingDecider
     {
         public Token NextToken { get; }

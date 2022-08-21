@@ -46,14 +46,12 @@ namespace CompileLib.Parsing
         /// <param name="token">The token to read</param>
         public void PerformInstead(Token token)
             => originalDecider.PerformInstead(new Common.Token(strToType(token), token.Self, token.Line, token.Column));
-
         /// <summary>
         /// Say that the production must be folded and the error must be raised in the parent production
         /// </summary>
         /// <param name="foldResult">Result of the folding</param>
         public void FoldAndReraise(object? foldResult)
             => originalDecider.FoldAndReraise(foldResult);
-
         /// <summary>
         /// Say that this handler refuses to perform the token and allows to perform it with another handler
         /// </summary>

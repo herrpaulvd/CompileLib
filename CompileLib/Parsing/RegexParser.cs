@@ -9,6 +9,9 @@ using CompileLib.LexerTools;
 
 namespace CompileLib.Parsing
 {
+    /// <summary>
+    /// Parser of POSIX-regexps
+    /// </summary>
     internal class RegexParser
     {
         private class Expr

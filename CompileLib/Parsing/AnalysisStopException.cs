@@ -6,8 +6,14 @@ using System.Threading.Tasks;
 
 namespace CompileLib.Parsing
 {
+    /// <summary>
+    /// Is throwed when syntax analysator does not handle an error
+    /// </summary>
     public class AnalysisStopException : Exception
     {
+        /// <summary>
+        /// The token at which the analysator stops
+        /// </summary>
         public Token Token { get; }
 
         public AnalysisStopException(Token token)

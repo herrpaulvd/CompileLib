@@ -7,6 +7,9 @@ using System.IO;
 
 namespace CompileLib.Parsing
 {
+    /// <summary>
+    /// Class for running parsers
+    /// </summary>
     public class ParsingEngine
     {
         private readonly LexerTools.Lexer lexer;
@@ -22,6 +25,13 @@ namespace CompileLib.Parsing
             this.typeToStr = typeToStr;
         }
 
+        /// <summary>
+        /// Method to parse the given char sequence
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="stream">the input</param>
+        /// <returns></returns>
+        /// <exception cref="AnalysisStopException"></exception>
         public T? Parse<T>(IEnumerable<char> stream)
         {
             try
@@ -40,6 +50,12 @@ namespace CompileLib.Parsing
                 yield return (char)stream.Read();
         }
 
+        /// <summary>
+        /// Method to parse the given file
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="fileName">the input file name</param>
+        /// <returns></returns>
         public T? ParseFile<T>(string fileName)
         {
             using var stream = new StreamReader(fileName);

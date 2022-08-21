@@ -7,6 +7,9 @@ using System.Diagnostics;
 
 namespace CompileLib.Common
 {
+    /// <summary>
+    /// Ordered graph class with some useful operations
+    /// </summary>
     internal class OrderedGraph
     {
         private int n;
@@ -25,6 +28,15 @@ namespace CompileLib.Common
             g[x].Add(y);
         }
 
+        /// <summary>
+        /// The method solves two problems for stack optimisation.
+        /// It is given a code execution graph (V = instructions, E = jumps and linear code sequence).
+        /// For each instruction, the algorithm finds two values:
+        /// 1) the instruction with the minimum number that is reachable from the given one;
+        /// 2) the instruction with the maximum number from that the given one is reachable.
+        /// </summary>
+        /// <param name="min">the answer for the 1st problem</param>
+        /// <param name="max">the answer for the 2nd problem</param>
         public void GetMinMaxArrays(out int[] min, out int[] max)
         {
             List<int>[] rg = new List<int>[n];
@@ -140,6 +152,10 @@ namespace CompileLib.Common
             max = BuildAgg(rg, crg, Math.Max, -1);
         }
 
+        /// <summary>
+        /// Just BFS searching for all reachable vertices from the given ones
+        /// </summary>
+        /// <param name="used">the given starts being transformed to the answer</param>
         public void FindReachable(bool[] used)
         {
             Queue<int> q = new();

@@ -53,6 +53,9 @@ namespace CompileLib.ParserTools
         }
     }
 
+    /// <summary>
+    /// LR(1)-automata
+    /// </summary>
     internal class LRMachine
     {
         private readonly LRAction[][] action;

@@ -7,8 +7,14 @@ using System.Diagnostics;
 
 namespace CompileLib.ParserTools
 {
+    /// <summary>
+    /// LR(1) builder
+    /// </summary>
     internal class GrammarBuilder
     {
+        /// <summary>
+        /// Internal GrammarBuilder's representation of productions
+        /// </summary>
         private struct Production
         {
             public int Start;
@@ -25,6 +31,9 @@ namespace CompileLib.ParserTools
             }
         }
 
+        /// <summary>
+        /// Handler for S'
+        /// </summary>
         private class MainHandler : IProductionHandler
         {
             public object? Handle(object?[] children)
@@ -34,6 +43,9 @@ namespace CompileLib.ParserTools
             public static readonly MainHandler Instance = new();
         }
 
+        /// <summary>
+        /// Default error handler stopping the analysis
+        /// </summary>
         private class DefaultErrorHandler : IErrorHandler
         {
             public void Handle(object?[] prefix, ErrorHandlingDecider decider)
@@ -76,8 +88,7 @@ namespace CompileLib.ParserTools
         {
             victim += reservedProductions;
             client += reservedProductions;
-            foldingBans[victim] ??= new();
-            foldingBans[victim].UnionWith(First(productions[client].Body));
+            (foldingBans[victim] ??= new()).UnionWith(First(productions[client].Body));
         }
 
         public GrammarBuilder(int tokensCount, int nonTokensCount, int start)

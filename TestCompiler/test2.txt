@@ -115,7 +115,8 @@ class Program
 			String.FromCharArray("0").Write();
 		fpart.WriteLine();
 	}
-
+	
+	// TODO: SSE2 + change ENTER instruction
 	public static void Main()
 	{
 		while(1)

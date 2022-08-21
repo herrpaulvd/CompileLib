@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 namespace CompileLib.Parsing
 {
     /// <summary>
-    /// [Only in ErrorProductions] Requires any token tag
+    /// Interface helping in syntax analysis with Optional and Many attributes
     /// </summary>
-    [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false)]
-    public class AnyTokenAttribute : Attribute
+    internal interface IGroup
     {
+        IEnumerable<object?> Expand();
     }
 }

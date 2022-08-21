@@ -8,7 +8,7 @@ using System.Collections.ObjectModel;
 namespace CompileLib.Parsing
 {
     /// <summary>
-    /// The child is a keyword
+    /// Attribute to define a keyword
     /// </summary>
     [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false)]
     public class KeywordsAttribute : Attribute
