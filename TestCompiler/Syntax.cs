@@ -15,15 +15,15 @@ namespace TestCompiler
     {
         public class SignatureStart
         {
-            public Token? visMod;
-            public Token? kwStatic;
+            public Parsed<string>? visMod;
+            public Parsed<string>? kwStatic;
             public TypeExpression type;
             public string id;
         }
 
         [SetTag("global")]
         public static GlobalScope ReadGlobal(
-            [Many(true)][RequireTags("class")] Class[] components,
+            [Many(true)][RequireTags("class")] Parsed<Class>[] components,
             [ErrorHandler] ErrorHandlingDecider e
             )
         {
@@ -33,7 +33,13 @@ namespace TestCompiler
                 e.Skip();
             }
 
-            return new GlobalScope(components);
+            foreach(var p in components)
+            {
+                Console.WriteLine($"Class at {p.Line} {p.Column} having tag {p.Tag}");
+            }
+
+            //return new GlobalScope(components);
+            return new GlobalScope(Array.ConvertAll(components, p => p.Self));
         }
 
         private static MemberVisibility Str2Visibility(string? s)
@@ -50,7 +56,7 @@ namespace TestCompiler
 
         [SetTag("type-expr")]
         public static TypeExpression? ReadTypeExpression(
-            [RequireTags("id")] Token className,
+            [RequireTags("id")] Parsed<string> className,
             [Many(true)][Keywords("[")] string[] brOpen,
             [TogetherWith][Keywords("]")] string[] brClose,
             [ErrorHandler] ErrorHandlingDecider e
@@ -87,7 +93,7 @@ namespace TestCompiler
 
         [SetTag("class")]
         public static Class? ReadClass(
-            [Keywords("class")] Token kw,
+            [Keywords("class")] Parsed<string> kw,
             [RequireTags("id")] string id,
             [Optional(false)][Keywords(":")] string inherited,
             [TogetherWith][RequireTags("id")] string baseClass,
@@ -103,27 +109,27 @@ namespace TestCompiler
                 if (kw is null)
                 {
                     ErrorList.AddExpectation("Keyword 'class'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "class", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "class", tk.Line, tk.Column));
                 }
                 else if(id is null)
                 {
                     ErrorList.AddExpectation("Identifier", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("id", "<unnamed>", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("id", "<unnamed>", tk.Line, tk.Column));
                 }
                 else if(inherited is not null && baseClass is null)
                 {
                     ErrorList.AddExpectation("Identifier", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("id", "<unknown>", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("id", "<unknown>", tk.Line, tk.Column));
                 }
                 else if(brOpen is null)
                 {
                     ErrorList.AddExpectation("'{'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "{", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "{", tk.Line, tk.Column));
                 }
                 else if(brClose is null)
                 {
                     ErrorList.AddExpectation("'}'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "}", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "}", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -137,8 +143,8 @@ namespace TestCompiler
         }
 
         [SetTag("visibility-mod")]
-        public static Token? ReadVisibilityModifier(
-            [Keywords("public", "private", "protected")] Token self,
+        public static Parsed<string>? ReadVisibilityModifier(
+            [Keywords("public", "private", "protected")] Parsed<string> self,
             [ErrorHandler] ErrorHandlingDecider e
             )
         {
@@ -154,8 +160,8 @@ namespace TestCompiler
 
         [SetTag("signature-start")]
         public static SignatureStart? ReadSignatureStart(
-            [Optional(false)][RequireTags("visibility-mod")] Token? visMod,
-            [Optional(false)][Keywords("static")] Token? kwStatic,
+            [Optional(false)][RequireTags("visibility-mod")] Parsed<string>? visMod,
+            [Optional(false)][Keywords("static")] Parsed<string>? kwStatic,
             [RequireTags("type-expr")] TypeExpression type,
             [RequireTags("id")] string id,
             [ErrorHandler] ErrorHandlingDecider e
@@ -172,7 +178,7 @@ namespace TestCompiler
                 else if(id is null)
                 {
                     ErrorList.AddExpectation("Id", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("id", "<unnamed>", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("id", "<unnamed>", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -209,7 +215,7 @@ namespace TestCompiler
                 else if(close is null)
                 {
                     ErrorList.AddExpectation("';'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -244,12 +250,12 @@ namespace TestCompiler
                 else if (brOpen is null)
                 {
                     ErrorList.AddExpectation("'('", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
                 }
                 else if(brClose is null)
                 {
                     ErrorList.AddExpectation("')'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
                 }
                 else if(statement is null)
                 {
@@ -296,7 +302,7 @@ namespace TestCompiler
                 else if(id is null)
                 {
                     ErrorList.AddExpectation("Identifier", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("id", "<unnamed>", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("id", "<unnamed>", tk.Line, tk.Column));
                 }
                 else if(separator is not null && (tail is null || tail.Count == 0))
                 {
@@ -319,7 +325,7 @@ namespace TestCompiler
 
         [SetTag("statement")]
         public static Statement? ReadInitStatement(
-            [Keywords("var")] Token kwvar,
+            [Keywords("var")] Parsed<string> kwvar,
             [RequireTags("type-expr")] TypeExpression type,
             [RequireTags("id")] string id,
             [Optional(false)][Keywords("=")] string eq,
@@ -334,7 +340,7 @@ namespace TestCompiler
                 if(kwvar is null)
                 {
                     ErrorList.AddExpectation("Keyword 'var'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "var", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "var", tk.Line, tk.Column));
                 }
                 else if(type is null)
                 {
@@ -344,17 +350,17 @@ namespace TestCompiler
                 else if(id is null)
                 {
                     ErrorList.AddExpectation("Identifier", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("id", "<unnamed>", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("id", "<unnamed>", tk.Line, tk.Column));
                 }
                 else if(eq is not null && expr is null)
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else if(close is null)
                 {
                     ErrorList.AddExpectation("';'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -371,7 +377,7 @@ namespace TestCompiler
         [SetTag("statement")]
         public static Statement? ReadSimpleStatement(
             [Optional(false)][RequireTags("expr")] Expression expr,
-            [Keywords(";")] Token close,
+            [Keywords(";")] Parsed<string> close,
             [ErrorHandler] ErrorHandlingDecider e
             )
         {
@@ -381,7 +387,7 @@ namespace TestCompiler
                 if(close is null)
                 {
                     ErrorList.AddExpectation("';'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -396,7 +402,7 @@ namespace TestCompiler
 
         [SetTag("statement")]
         public static Statement? ReadStatementBlock(
-            [Keywords("{")] Token brOpen,
+            [Keywords("{")] Parsed<string> brOpen,
             [Many(true)][RequireTags("statement")] Statement[] statements,
             [Keywords("}")] string brClose,
             [ErrorHandler] ErrorHandlingDecider e
@@ -408,12 +414,12 @@ namespace TestCompiler
                 if(brOpen is null)
                 {
                     ErrorList.AddExpectation("'{'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "{", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "{", tk.Line, tk.Column));
                 }
                 else if(brClose is null)
                 {
                     ErrorList.AddExpectation("'}'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "}", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "}", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -428,7 +434,7 @@ namespace TestCompiler
 
         [SetTag("statement")]
         public static Statement? ReadIfStatement(
-            [Keywords("if")] Token kw,
+            [Keywords("if")] Parsed<string> kw,
             [Keywords("(")] string brOpen,
             [RequireTags("expr")] Expression condition,
             [Keywords(")")] string brClose,
@@ -444,32 +450,32 @@ namespace TestCompiler
                 if(kw is null)
                 {
                     ErrorList.AddExpectation("Keyword 'if'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "if", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "if", tk.Line, tk.Column));
                 }
                 else if(brOpen is null)
                 {
                     ErrorList.AddExpectation("'('", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
                 }
                 else if(condition is null)
                 {
                     ErrorList.AddExpectation("Condition expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else if(brClose is null)
                 {
                     ErrorList.AddExpectation("')'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
                 }
                 else if(ifBranch is null)
                 {
                     ErrorList.AddExpectation("If-branch statement", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else if(kwElse is not null && elseBranch is null)
                 {
                     ErrorList.AddExpectation("Else-branch statement", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -485,7 +491,7 @@ namespace TestCompiler
 
         [SetTag("statement")]
         public static Statement? ReadWhileStatement(
-            [Keywords("while")] Token kw,
+            [Keywords("while")] Parsed<string> kw,
             [Keywords("(")] string brOpen,
             [RequireTags("expr")] Expression condition,
             [Keywords(")")] string brClose,
@@ -499,27 +505,27 @@ namespace TestCompiler
                 if (kw is null)
                 {
                     ErrorList.AddExpectation("Keyword 'while'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "while", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "while", tk.Line, tk.Column));
                 }
                 else if (brOpen is null)
                 {
                     ErrorList.AddExpectation("'('", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
                 }
                 else if (condition is null)
                 {
                     ErrorList.AddExpectation("Condition expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else if (brClose is null)
                 {
                     ErrorList.AddExpectation("')'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
                 }
                 else if (body is null)
                 {
                     ErrorList.AddExpectation("While loop body", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -535,7 +541,7 @@ namespace TestCompiler
 
         [SetTag("statement")]
         public static Statement? ReadDoWhileStatement(
-            [Keywords("do")] Token kw,
+            [Keywords("do")] Parsed<string> kw,
             [RequireTags("statement")] Statement body,
             [Keywords("while")] string kwWhile,
             [Keywords("(")] string brOpen,
@@ -551,37 +557,37 @@ namespace TestCompiler
                 if (kw is null)
                 {
                     ErrorList.AddExpectation("Keyword 'do'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "do", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "do", tk.Line, tk.Column));
                 }
                 else if (body is null)
                 {
                     ErrorList.AddExpectation("Do-While loop body", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else if (kwWhile is null)
                 {
                     ErrorList.AddExpectation("Keyword 'while'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "while", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "while", tk.Line, tk.Column));
                 }
                 else if (brOpen is null)
                 {
                     ErrorList.AddExpectation("'('", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
                 }
                 else if (condition is null)
                 {
                     ErrorList.AddExpectation("Condition expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else if (brClose is null)
                 {
                     ErrorList.AddExpectation("')'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
                 }
                 else if (brClose is null)
                 {
                     ErrorList.AddExpectation("';'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -597,7 +603,7 @@ namespace TestCompiler
 
         [SetTag("statement")]
         public static Statement? ReadForStatement(
-            [Keywords("for")] Token kw,
+            [Keywords("for")] Parsed<string> kw,
             [Keywords("(")] string brOpen,
             [RequireTags("statement")] Statement init,
             [RequireTags("expr")] Expression cond,
@@ -614,42 +620,42 @@ namespace TestCompiler
                 if (kw is null)
                 {
                     ErrorList.AddExpectation("Keyword 'for'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "for", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "for", tk.Line, tk.Column));
                 }
                 else if (brOpen is null)
                 {
                     ErrorList.AddExpectation("'('", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
                 }
                 else if (init is null)
                 {
                     ErrorList.AddExpectation("For loop init statement", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else if (cond is null)
                 {
                     ErrorList.AddExpectation("Condition expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else if (sep2 is null)
                 {
                     ErrorList.AddExpectation("';'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else if (step is null)
                 {
                     ErrorList.AddExpectation("For loop step statement", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else if (brClose is null)
                 {
                     ErrorList.AddExpectation("')'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
                 }
                 else if (body is null)
                 {
                     ErrorList.AddExpectation("For loop body", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -665,7 +671,7 @@ namespace TestCompiler
 
         [SetTag("statement")]
         public static Statement? ReadReturn(
-            [Keywords("return")] Token kw,
+            [Keywords("return")] Parsed<string> kw,
             [Optional(false)][RequireTags("expr")] Expression expr,
             [Keywords(";")] string close,
             [ErrorHandler] ErrorHandlingDecider e
@@ -677,12 +683,12 @@ namespace TestCompiler
                 if(kw is null)
                 {
                     ErrorList.AddExpectation("Keyword 'return'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "return", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "return", tk.Line, tk.Column));
                 }
                 else if(close is null)
                 {
                     ErrorList.AddExpectation("';'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -697,7 +703,7 @@ namespace TestCompiler
 
         [SetTag("statement")]
         public static Statement? ReadBreakContinue(
-            [Keywords("break", "continue")] Token kw,
+            [Keywords("break", "continue")] Parsed<string> kw,
             [Keywords(";")] string close,
             [ErrorHandler] ErrorHandlingDecider e
             )
@@ -708,12 +714,12 @@ namespace TestCompiler
                 if(kw is null)
                 {
                     ErrorList.AddExpectation("Keyword 'return' or 'break'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "return", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "return", tk.Line, tk.Column));
                 }
                 else if (close is null)
                 {
                     ErrorList.AddExpectation("';'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ";", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -740,12 +746,12 @@ namespace TestCompiler
                 if(expr is null)
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else if(separator is not null && (tail is null || tail.Count == 0))
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -763,7 +769,7 @@ namespace TestCompiler
 
         [SetTag("expr-atom")]
         public static Expression? ReadExprInBrackets(
-            [Keywords("(")] Token brOpen,
+            [Keywords("(")] Parsed<string> brOpen,
             [RequireTags("expr")] Expression expr,
             [Keywords(")")] string brClose,
             [ErrorHandler] ErrorHandlingDecider e
@@ -779,12 +785,12 @@ namespace TestCompiler
                 else if(expr is null)
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else if(brClose is null)
                 {
                     ErrorList.AddExpectation("')'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -800,7 +806,7 @@ namespace TestCompiler
 
         [SetTag("expr-atom")]
         public static Expression? ReadNewOrThis(
-            [Keywords("new", "this")] Token id,
+            [Keywords("new", "this")] Parsed<string> id,
             [ErrorHandler] ErrorHandlingDecider e
             )
         {
@@ -824,7 +830,7 @@ namespace TestCompiler
 
         [SetTag("expr-atom")]
         public static Expression? ReadID(
-            [RequireTags("id")] Token id,
+            [RequireTags("id")] Parsed<string> id,
             [ErrorHandler] ErrorHandlingDecider e
             )
         {
@@ -834,7 +840,7 @@ namespace TestCompiler
                 if (id is null)
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("id", "<unknown>", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("id", "<unknown>", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -849,7 +855,7 @@ namespace TestCompiler
 
         [SetTag("expr-atom")]
         public static Expression? ReadConst(
-            [RequireTags("int10", "int16", "int8", "int2", "str", "char", "float")] Token token,
+            [RequireTags("int10", "int16", "int8", "int2", "str", "char", "float")] Parsed<string> token,
             [ErrorHandler] ErrorHandlingDecider e
             )
         {
@@ -868,6 +874,10 @@ namespace TestCompiler
                 return null;
             }
 
+            if(token.Tag == "[helper tag]43")
+            {
+                Console.WriteLine("here");
+            }
             return new ConstExpression(token.Self, token.Tag, token.Line, token.Column);
         }
 
@@ -914,12 +924,12 @@ namespace TestCompiler
                 else if(brOpen is null)
                 {
                     ErrorList.AddExpectation("'('", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
                 }
                 else if(brClose is null)
                 {
                     ErrorList.AddExpectation("')'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -958,12 +968,12 @@ namespace TestCompiler
                 else if (brOpen is null)
                 {
                     ErrorList.AddExpectation("'('", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "(", tk.Line, tk.Column));
                 }
                 else if (brClose is null)
                 {
                     ErrorList.AddExpectation("')'", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ")", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -997,12 +1007,12 @@ namespace TestCompiler
                 else if(operation is null)
                 {
                     ErrorList.AddExpectation("Operation sign", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, ".", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, ".", tk.Line, tk.Column));
                 }
                 else if(id is null)
                 {
                     ErrorList.AddExpectation("Identifier", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("id", "<unnamed>", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("id", "<unnamed>", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -1041,7 +1051,7 @@ namespace TestCompiler
 
         [SetTag("expr-unary")]
         public static Expression? ReadUnaryExpression(
-            [Keywords("!", "~", "-", "+", "*", "&")] Token operation,
+            [Keywords("!", "~", "-", "+", "*", "&")] Parsed<string> operation,
             [RequireTags("expr-unary")] Expression operand,
             [ErrorHandler] ErrorHandlingDecider e
             )
@@ -1056,7 +1066,7 @@ namespace TestCompiler
                 else if (operand is null)
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -1096,7 +1106,7 @@ namespace TestCompiler
         [SetTag("expr-mul")]
         public static Expression? ReadMulExpression(
             [RequireTags("expr-mul")] Expression left,
-            [Keywords("*", "/", "%")] Token operation,
+            [Keywords("*", "/", "%")] Parsed<string> operation,
             [RequireTags("expr-unary")] Expression right,
             [ErrorHandler] ErrorHandlingDecider e
             )
@@ -1111,12 +1121,12 @@ namespace TestCompiler
                 else if (operation is null)
                 {
                     ErrorList.AddExpectation("Operation sign", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "*", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "*", tk.Line, tk.Column));
                 }
                 else if (right is null)
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -1156,7 +1166,7 @@ namespace TestCompiler
         [SetTag("expr-add")]
         public static Expression? ReadAddExpression(
             [RequireTags("expr-add")] Expression left,
-            [Keywords("+", "-")] Token operation,
+            [Keywords("+", "-")] Parsed<string> operation,
             [RequireTags("expr-mul")] Expression right,
             [ErrorHandler] ErrorHandlingDecider e
             )
@@ -1171,12 +1181,12 @@ namespace TestCompiler
                 else if (operation is null)
                 {
                     ErrorList.AddExpectation("Operation sign", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "+", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "+", tk.Line, tk.Column));
                 }
                 else if (right is null)
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -1216,7 +1226,7 @@ namespace TestCompiler
         [SetTag("expr-cmp")]
         public static Expression? ReadCmpExpression(
             [RequireTags("expr-cmp")] Expression left,
-            [Keywords("==", "!=", "<", ">", "<=", ">=")] Token operation,
+            [Keywords("==", "!=", "<", ">", "<=", ">=")] Parsed<string> operation,
             [RequireTags("expr-add")] Expression right,
             [ErrorHandler] ErrorHandlingDecider e
             )
@@ -1231,12 +1241,12 @@ namespace TestCompiler
                 else if (operation is null)
                 {
                     ErrorList.AddExpectation("Operation sign", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "*", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "*", tk.Line, tk.Column));
                 }
                 else if (right is null)
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -1276,7 +1286,7 @@ namespace TestCompiler
         [SetTag("expr-log")]
         public static Expression? ReadLogExpression(
             [RequireTags("expr-log")] Expression left,
-            [Keywords("&&", "||", "&", "|", "^", "<<", ">>")] Token operation,
+            [Keywords("&&", "||", "&", "|", "^", "<<", ">>")] Parsed<string> operation,
             [RequireTags("expr-cmp")] Expression right,
             [ErrorHandler] ErrorHandlingDecider e
             )
@@ -1291,12 +1301,12 @@ namespace TestCompiler
                 else if (operation is null)
                 {
                     ErrorList.AddExpectation("Operation sign", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "&", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "&", tk.Line, tk.Column));
                 }
                 else if (right is null)
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else
                 {
@@ -1336,7 +1346,7 @@ namespace TestCompiler
         [SetTag("expr")]
         public static Expression? ReadAssignExpression(
             [RequireTags("expr-log")] Expression left,
-            [Keywords("=")] Token operation,
+            [Keywords("=")] Parsed<string> operation,
             [RequireTags("expr")] Expression right,
             [ErrorHandler] ErrorHandlingDecider e
             )
@@ -1351,12 +1361,12 @@ namespace TestCompiler
                 else if (operation is null)
                 {
                     ErrorList.AddExpectation("Operation sign", tk.Line, tk.Column);
-                    e.PerformBefore(new Token(SpecialTags.TAG_KEYWORD, "=", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>(SpecialTags.TAG_KEYWORD, "=", tk.Line, tk.Column));
                 }
                 else if (right is null)
                 {
                     ErrorList.AddExpectation("Expression", tk.Line, tk.Column);
-                    e.PerformBefore(new Token("int10", "0", tk.Line, tk.Column));
+                    e.PerformBefore(new Parsed<string>("int10", "0", tk.Line, tk.Column));
                 }
                 else
                 {

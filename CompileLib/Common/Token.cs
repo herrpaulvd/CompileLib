@@ -12,9 +12,9 @@ namespace CompileLib.Common
     internal struct Token
     {
         /// <summary>
-        /// Type of the lexem
+        /// Type of the lexem. If null, the lexem is invalid
         /// </summary>
-        public int Type;
+        public int? Type;
         /// <summary>
         /// The lexem itself
         /// </summary>
@@ -28,7 +28,7 @@ namespace CompileLib.Common
         /// </summary>
         public int Column;
 
-        public Token(int type, string self, int line, int column)
+        public Token(int? type, string self, int line, int column)
         {
             Type = type;
             Self = self;

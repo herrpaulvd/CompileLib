@@ -21,7 +21,7 @@ namespace TestCompiler
         public void AddUnexpected(string what, int line, int column)
             => Add($"Unexpected {what}", line, column);
 
-        public void AddUnexpected(Token tk)
+        public void AddUnexpected(Parsed<string> tk)
             => AddUnexpected(tk.Tag == SpecialTags.TAG_KEYWORD ? $"Keyword '{tk.Self}'" : tk.Tag, tk.Line, tk.Column);
 
         public bool Empty() => errors.Count == 0;

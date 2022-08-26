@@ -15,14 +15,14 @@ namespace CompileLib.Parsing
         private readonly LexerTools.Lexer lexer;
         private readonly ParserTools.LRMachine parser;
         private readonly Func<Common.Token, bool> tokenFilter;
-        private readonly Func<int, string> typeToStr;
+        private readonly Func<int?, string> tokenTypeToStr;
 
-        internal ParsingEngine(LexerTools.Lexer lexer, ParserTools.LRMachine parser, Func<Common.Token, bool> tokenFilter, Func<int, string> typeToStr)
+        internal ParsingEngine(LexerTools.Lexer lexer, ParserTools.LRMachine parser, Func<Common.Token, bool> tokenFilter, Func<int?, string> tokenTypeToStr)
         {
             this.lexer = lexer;
             this.parser = parser;
             this.tokenFilter = tokenFilter;
-            this.typeToStr = typeToStr;
+            this.tokenTypeToStr = tokenTypeToStr;
         }
 
         /// <summary>
@@ -32,15 +32,16 @@ namespace CompileLib.Parsing
         /// <param name="stream">the input</param>
         /// <returns></returns>
         /// <exception cref="AnalysisStopException"></exception>
-        public T? Parse<T>(IEnumerable<char> stream)
+        public Parsed<T> Parse<T>(IEnumerable<char> stream)
+            where T : class
         {
             try
             {
-                return (T?)parser.Analyze(lexer.GetTokens(stream).Where(tokenFilter));
+                return new(parser.Analyze(lexer.GetTokens(stream).Where(tokenFilter)));
             }
             catch(ParserTools.LRStopException e)
             {
-                throw new AnalysisStopException(new Token(typeToStr(e.Token.Type), e.Token.Self, e.Token.Line, e.Token.Column));
+                throw new AnalysisStopException(new Parsed<string>(tokenTypeToStr(e.Token.Type), e.Token.Self, e.Token.Line, e.Token.Column));
             }
         }
 
@@ -56,7 +57,8 @@ namespace CompileLib.Parsing
         /// <typeparam name="T"></typeparam>
         /// <param name="fileName">the input file name</param>
         /// <returns></returns>
-        public T? ParseFile<T>(string fileName)
+        public Parsed<T> ParseFile<T>(string fileName)
+            where T : class
         {
             using var stream = new StreamReader(fileName);
             return Parse<T>(FileStreamToEnumerable(stream));

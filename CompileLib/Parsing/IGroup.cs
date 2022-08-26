@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CompileLib.ParserTools;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,6 +12,6 @@ namespace CompileLib.Parsing
     /// </summary>
     internal interface IGroup
     {
-        IEnumerable<object?> Expand();
+        IEnumerable<AnyParsed> Expand();
     }
 }

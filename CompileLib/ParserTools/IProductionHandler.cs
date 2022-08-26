@@ -11,6 +11,6 @@ namespace CompileLib.ParserTools
     /// </summary>
     internal interface IProductionHandler
     {
-        object? Handle(object?[] children);
+        object? Handle(AnyParsed[] children, ref string tag);
     }
 }

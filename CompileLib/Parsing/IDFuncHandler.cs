@@ -1,9 +1,9 @@
-﻿using CompileLib.ParserTools;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using CompileLib.ParserTools;
 
 namespace CompileLib.Parsing
 {
@@ -12,14 +12,15 @@ namespace CompileLib.Parsing
     /// </summary>
     internal class IDFuncHandler : IProductionHandler, IErrorHandler
     {
-        public object? Handle(object?[] children)
+        public object? Handle(AnyParsed[] children, ref string tag)
         {
-            return children[0];
+            tag = children[0].Tag;
+            return children[0].Self;
         }
 
-        public void Handle(object?[] prefix, ParserTools.ErrorHandlingDecider decider)
+        public ErrorHandlingDecision Handle(AnyParsed[] prefix, Parsed<string> nextToken)
         {
-            decider.FoldAndReraise(null);
+            return ErrorHandlingDecision.FoldAndReraise(null);
         }
 
         public static readonly IDFuncHandler Instance = new();

@@ -165,7 +165,7 @@ namespace Launcher
 
         [SetTag("r-expr-A")]
         public static string LiteralOrID(
-            [RequireTags("int", "str", "float", "id")] Token t            
+            [RequireTags("int", "str", "float", "id")] Parsed t            
             )
         {
             string head = t.Tag switch

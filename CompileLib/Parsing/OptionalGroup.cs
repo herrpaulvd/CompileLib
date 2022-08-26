@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CompileLib.ParserTools;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,20 +12,20 @@ namespace CompileLib.Parsing
     /// </summary>
     internal class OptionalGroup : IGroup
     {
-        private readonly object?[] children;
+        private readonly AnyParsed[] children;
         private readonly int divisor;
 
-        public OptionalGroup(object?[] children, int divisor)
+        public OptionalGroup(AnyParsed[] children, int divisor)
         {
             this.children = children;
             this.divisor = divisor;
         }
 
-        public IEnumerable<object?> Expand()
+        public IEnumerable<AnyParsed> Expand()
         {
             if (children.Length == divisor)
                 return children;
-            return children.Concat(Enumerable.Repeat((object?)null, divisor - children.Length));
+            return children.Concat(Enumerable.Repeat(new AnyParsed(SpecialTags.TAG_UNDEFINED, null, -1, -1), divisor - children.Length));
         }
     }
 }

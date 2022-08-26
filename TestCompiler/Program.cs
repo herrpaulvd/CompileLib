@@ -40,7 +40,7 @@ try
     var global = engine.ParseFile<GlobalScope>(args.Length > 0 ? args[0] : PromptInput("Input file: "));
     if(Syntax.ErrorList.Empty())
     {
-        global?.Compile(args.Length > 1 ? args[1] : PromptInput("Output file: "));
+        global?.Self?.Compile(args.Length > 1 ? args[1] : PromptInput("Output file: "));
     }
     else
     {
@@ -48,8 +48,9 @@ try
         Console.WriteLine(Syntax.ErrorList);
     }
 }
-catch(Exception ex)
+catch(ArgumentException ex)
 {
+    // TODO: какая-то ошибка, вместо типа вылазеет [helper tag]#43 проследить
     Console.WriteLine("There are errors:");
     if (!Syntax.ErrorList.Empty()) Console.WriteLine(Syntax.ErrorList);
     Console.WriteLine(ex.Message);

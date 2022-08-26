@@ -62,22 +62,33 @@ namespace CompileLib.ParserTools
         private readonly int[][] @goto;
         private readonly List<(int, IErrorHandler, int)>[] errorHandlers;
         private readonly Token finalToken;
+        private readonly Func<int?, string> tokenTypeToStr;
+        private readonly Func<int?, string> nonTokenTypeToStr;
 
-        public LRMachine(LRAction[][] action, int[][] @goto, List<(int, IErrorHandler, int)>[] errorHandlers, Token finalToken)
+        public LRMachine(
+            LRAction[][] action, 
+            int[][] @goto, 
+            List<(int, IErrorHandler, int)>[] errorHandlers, 
+            Token finalToken,
+            Func<int?, string> tokenTypeToStr,
+            Func<int?, string> nonTokenTypeToStr
+            )
         {
             this.action = action;
             this.@goto = @goto;
             this.errorHandlers = errorHandlers;
             this.finalToken = finalToken;
+            this.tokenTypeToStr = tokenTypeToStr;
+            this.nonTokenTypeToStr = nonTokenTypeToStr;
         }
 
-        public object? Analyze(IEnumerable<Token> tokens)
+        public AnyParsed Analyze(IEnumerable<Token> tokens)
         {
             Stack<int> states = new();
             states.Push(0);
-            Stack<object?> elements = new();
+            Stack<AnyParsed> elements = new();
 
-            void PushRange(IEnumerable<object?> basis, IEnumerable<int> savedStates)
+            void PushRange(IEnumerable<AnyParsed> basis, IEnumerable<int> savedStates)
             {
                 foreach(var e in basis) elements.Push(e);
                 foreach(var i in savedStates) states.Push(i);
@@ -86,41 +97,48 @@ namespace CompileLib.ParserTools
             void Perform(Token t, bool errorAnyway = false)
             {
                 LRAction a;
-                if(errorAnyway || t.Type < 0 || (a = action[states.Peek()][t.Type]).IsError)
+                if(errorAnyway || !t.Type.HasValue || (a = action[states.Peek()][t.Type.Value]).IsError)
                 {
                     foreach(var (count, handler, errorNT) in errorHandlers[states.Peek()])
                     {
-                        var basis = new object?[count];
+                        var basis = new AnyParsed[count];
                         var savedStates = new int[count];
                         for (int i = 0; i < count; i++)
                         {
                             basis[count - 1 - i] = elements.Pop();
                             savedStates[count - 1 - i] = states.Pop();
                         }
-                        var decider = new ErrorHandlingDecider(t);
-                        handler.Handle(basis, decider);
-                        switch (decider.Decision)
+                        var decision = handler.Handle(basis, new Parsing.Parsed<string>(
+                            tokenTypeToStr(t.Type),
+                            t.Self,
+                            t.Line,
+                            t.Column));
+                        switch (decision.Decision)
                         {
-                            case ErrorHandlingDecision.Skip:
+                            case ErrorHandlingDecisionType.Skip:
                                 PushRange(basis, savedStates);
                                 return;
-                            case ErrorHandlingDecision.Stop:
+                            case ErrorHandlingDecisionType.Stop:
                                 throw new LRStopException(t);
-                            case ErrorHandlingDecision.Before:
+                            case ErrorHandlingDecisionType.Before:
                                 PushRange(basis, savedStates);
-                                Perform(decider.TokenArgument);
+                                Perform(decision.TokenArgument);
                                 Perform(t);
                                 return;
-                            case ErrorHandlingDecision.Instead:
+                            case ErrorHandlingDecisionType.Instead:
                                 PushRange(basis, savedStates);
-                                Perform(decider.TokenArgument);
+                                Perform(decision.TokenArgument);
                                 return;
-                            case ErrorHandlingDecision.FoldAndRaise:
+                            case ErrorHandlingDecisionType.FoldAndRaise:
                                 states.Push(@goto[states.Peek()][errorNT]);
-                                elements.Push(decider.Argument);
+                                elements.Push(new AnyParsed(
+                                    Parsing.SpecialTags.TAG_UNKNOWN, 
+                                    decision.Argument,
+                                    count == 0 ? t.Line : basis[0].Line,
+                                    count == 0 ? t.Column : basis[0].Column));
                                 Perform(t, true);
                                 return;
-                            case ErrorHandlingDecision.NextHandler:
+                            case ErrorHandlingDecisionType.NextHandler:
                                 PushRange(basis, savedStates);
                                 break; // exit switch but continue loop
                             default:
@@ -135,17 +153,24 @@ namespace CompileLib.ParserTools
                 {
                     case LRActionType.Carry:
                         states.Push(a.NextState);
-                        elements.Push(t);
+                        elements.Push(new AnyParsed(tokenTypeToStr(t.Type), t.Self, t.Line, t.Column));
                         return;
                     case LRActionType.Fold:
-                        object?[] basis = new object[a.Count];
+                        AnyParsed[] basis = new AnyParsed[a.Count];
                         for(int i = 0; i < a.Count; i++)
                         {
                             states.Pop();
                             basis[a.Count - 1 - i] = elements.Pop();
                         }
                         states.Push(@goto[states.Peek()][a.NT]);
-                        elements.Push(a.ProductionHandler.Handle(basis));
+                        
+                        var tag = nonTokenTypeToStr(a.NT);
+                        var handleResult = a.ProductionHandler.Handle(basis, ref tag);
+                        elements.Push(new AnyParsed(
+                            tag,
+                            handleResult,
+                            a.Count == 0 ? t.Line : basis[0].Line,
+                            a.Count == 0 ? t.Column : basis[0].Column));
                         Perform(t);
                         return;
                     case LRActionType.Accept:
@@ -159,7 +184,7 @@ namespace CompileLib.ParserTools
             foreach(var t in tokens)
                 Perform(t);
             Perform(finalToken);
-            if (elements.Count == 0) return null;
+            if (elements.Count == 0) throw new Parsing.ParsingException("Empty LR stack");
             return elements.Peek();
         }
     }

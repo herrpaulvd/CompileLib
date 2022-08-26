@@ -10,6 +10,7 @@ using CompileLib.LexerTools;
 using CompileLib.ParserTools;
 using static CompileLib.Parsing.SpecialTags;
 using CompileLib.Common;
+using System.Security;
 
 namespace CompileLib.Parsing
 {
@@ -298,7 +299,7 @@ namespace CompileLib.Parsing
             return AddProductions(typeof(T));
         }
 
-        private static Func<Token, int> TypeToString(SortedDictionary<string, int> keywordToIndex, SortedDictionary<string, int> tagToIndex, Func<string, int> getTokenType)
+        private static Func<Parsed<string>, int?> TokenToType(SortedDictionary<string, int> keywordToIndex, SortedDictionary<string, int> tagToIndex, Func<string, int?> getTokenType)
         {
             return t => t.Tag switch
                 {
@@ -371,8 +372,9 @@ namespace CompileLib.Parsing
                 tokenName.Add(tag);
                 showedTokensNames.Add(tag);
             }
-
+            
             List<string> showedNonTokensNames = new();
+            List<string> nonTokenName = showedNonTokensNames; // for now, it's alias but in the future it can be changed
             int totalNonTokensCount = 0;
             foreach(var tag in nonTokenTags.Concat(fictiveNonTokens))
             {
@@ -396,8 +398,10 @@ namespace CompileLib.Parsing
 
             var grammarBuilder = new GrammarBuilder(totalTokensCount, totalNonTokensCount, tagToIndex[start]);
             
-            string TokenTypeToStr(int id)
-                => (id < 0 ? TAG_UNDEFINED : (id == totalTokensCount ? TAG_EOF : tokenName[id]));
+            string TokenTypeToString(int? id)
+                => id.HasValue ? (id.Value == totalTokensCount ? TAG_EOF : tokenName[id.Value]) : TAG_UNDEFINED;
+            string NonTokenTypeToString(int? id)
+                => id.HasValue ? nonTokenName[id.Value] : TAG_UNDEFINED;
 
             int GetIndexOfTag(Alternation<string, HelperTag> tag)
                 => tag.FirstType() ? tagToIndex[tag.First] : helperTagToIndex[tag.Second.ID];
@@ -441,13 +445,13 @@ namespace CompileLib.Parsing
                     var ht = p.Tag.Second;
                     if (ht.ParentAttribute is OptionalAttribute)
                     {
-                        var h = new OptionalProductionHandler(p.Divisor);
+                        var h = new GroupHandler<OptionalGroup>(p.Divisor);
                         productionHandler = h;
                         errorHandler = h;
                     }
                     else if (ht.ParentAttribute is ManyAttribute)
                     {
-                        var h = new ManyProductionHandler(p.Divisor);
+                        var h = new GroupHandler<ManyGroup>(p.Divisor);
                         productionHandler = h;
                         errorHandler = h;
                     }
@@ -460,7 +464,7 @@ namespace CompileLib.Parsing
                 }
                 else
                 {
-                    var h = new StandardProductionHandler(p.Handler, p.HasErrorHandler, TokenTypeToStr, TypeToString(keywordToIndex, tokenTagToIndex, lexer.SingleAnalyze));
+                    var h = new UserHandler(p.Handler, p.HasErrorHandler, TokenToType(keywordToIndex, tokenTagToIndex, lexer.SingleAnalyze));
                     productionHandler = h;
                     errorHandler = h;
                 }
@@ -491,7 +495,7 @@ namespace CompileLib.Parsing
 
             try
             {
-                return new ParsingEngine(lexer, grammarBuilder.CreateMachine(), tk => !whitespaces.Contains(tk.Type), TokenTypeToStr);
+                return new ParsingEngine(lexer, grammarBuilder.CreateMachine(TokenTypeToString, NonTokenTypeToString), tk => tk.Type.HasValue && !whitespaces.Contains(tk.Type.Value), TokenTypeToString);
             }
             catch (LRConflictException e)
             {

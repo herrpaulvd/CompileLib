@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using CompileLib.Parsing;
 
 namespace CompileLib.ParserTools
 {
@@ -32,25 +33,13 @@ namespace CompileLib.ParserTools
         }
 
         /// <summary>
-        /// Handler for S'
-        /// </summary>
-        private class MainHandler : IProductionHandler
-        {
-            public object? Handle(object?[] children)
-            {
-                return children[0];
-            }
-            public static readonly MainHandler Instance = new();
-        }
-
-        /// <summary>
         /// Default error handler stopping the analysis
         /// </summary>
         private class DefaultErrorHandler : IErrorHandler
         {
-            public void Handle(object?[] prefix, ErrorHandlingDecider decider)
+            public ErrorHandlingDecision Handle(AnyParsed[] prefix, Parsed<string> nextToken)
             {
-                decider.Stop();
+                return ErrorHandlingDecision.Stop;
             }
             public static readonly DefaultErrorHandler Instance = new();
         }
@@ -101,7 +90,7 @@ namespace CompileLib.ParserTools
             for (int i = 0; i < this.nonTokensCount; i++)
                 prodByStart[i] = new();
             mainProduction = productions.Count;
-            AddProduction(fictStart, new int[] {start}, MainHandler.Instance, null);
+            AddProduction(fictStart, new int[] {start}, IDFuncHandler.Instance, null);
         }
 
         private bool[] empty;
@@ -445,7 +434,7 @@ namespace CompileLib.ParserTools
             }
         }
 
-        public LRMachine CreateMachine()
+        public LRMachine CreateMachine(Func<int?, string> tokenTypeToStr, Func<int?, string> nonTokenTypeToStr)
         {
             RecalcFirstAndEmpty();
             List<List<(int, int, int)>> lists = new();
@@ -566,7 +555,7 @@ namespace CompileLib.ParserTools
                 errorHandlers.Add(currHandlers);
             }
 
-            return new LRMachine(actions.ToArray(), @goto.ToArray(), errorHandlers.ToArray(), new Common.Token(~fictEOF, "", -1, -1));
+            return new LRMachine(actions.ToArray(), @goto.ToArray(), errorHandlers.ToArray(), new Common.Token(~fictEOF, "", -1, -1), tokenTypeToStr, nonTokenTypeToStr);
         }
     }
 }

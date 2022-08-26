@@ -14,9 +14,9 @@ namespace CompileLib.Parsing
         /// <summary>
         /// The token at which the analysator stops
         /// </summary>
-        public Token Token { get; }
+        public Parsed<string> Token { get; }
 
-        public AnalysisStopException(Token token)
+        public AnalysisStopException(Parsed<string> token)
             : base($"[Tag {token.Tag}][String {token.Self}][Line {token.Line}][Column {token.Column}] Syntax analysis has been stopped while error handling")
         {
             Token = token;

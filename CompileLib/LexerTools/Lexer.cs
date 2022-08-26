@@ -39,7 +39,7 @@ namespace CompileLib.LexerTools
         }
 
         /// <summary>
-        /// id < 0 means no valid token
+        /// id == null means no valid token
         /// </summary>
         /// <param name="code"></param>
         /// <returns></returns>
@@ -53,7 +53,7 @@ namespace CompileLib.LexerTools
             
             while (s.MoveNext())
             {
-                int tokenID = -1;
+                int? tokenID = null;
                 int tokenLength = 0;
                 int tokenLine = line;
                 int tokenColumn = column;
@@ -107,7 +107,7 @@ namespace CompileLib.LexerTools
             }
         }
 
-        public int SingleAnalyze(string token)
+        public int? SingleAnalyze(string token)
         {
             foreach(var (id, machine) in tokens)
             {
@@ -124,7 +124,7 @@ namespace CompileLib.LexerTools
                     return id;
             }
 
-            return -1;
+            return null;
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CompileLib.Parsing;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,6 +12,6 @@ namespace CompileLib.ParserTools
     /// </summary>
     internal interface IErrorHandler
     {
-        void Handle(object?[] prefix, ErrorHandlingDecider decider);
+        ErrorHandlingDecision Handle(AnyParsed[] prefix, Parsed<string> nextToken);
     }
 }
