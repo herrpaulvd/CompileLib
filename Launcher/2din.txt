@@ -1,0 +1,19 @@
+﻿x:
+		y:
+			z =    5
+			q  = 66
+		z:
+						w = 13
+						ewfwefr = 16
+
+
+						acdcadcasc:
+							
+							q = 228
+							
+							fewfqwf:
+								FF = 333
+							FF = 500
+
+
+

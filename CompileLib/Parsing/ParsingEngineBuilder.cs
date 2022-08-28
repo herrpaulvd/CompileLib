@@ -11,6 +11,7 @@ using CompileLib.ParserTools;
 using static CompileLib.Parsing.SpecialTags;
 using CompileLib.Common;
 using System.Security;
+using System.Reflection.PortableExecutable;
 
 namespace CompileLib.Parsing
 {
@@ -61,6 +62,20 @@ namespace CompileLib.Parsing
         /// Set of all expression tags with the corresponding operations
         /// </summary>
         private readonly SortedDictionary<string, ExpressionTagOperationsSet> operations = new();
+        /// <summary>
+        /// parameters for 2d syntax parsing
+        /// </summary>
+        private (string lineEnd, string blockBegin, string blockEnd)? params2d = null;
+
+        public ParsingEngineBuilder Enable2DSyntax(string lineEndTag, string blockBeginTag, string blockEndTag)
+        {
+            if (params2d.HasValue)
+                throw new ParsingEngineBuildingException("The method cannot be called twice");
+            if (lineEndTag is null || blockBeginTag is null || blockEndTag is null)
+                throw new ParsingEngineBuildingException(errorUnexpectedNullTag);
+            params2d = (lineEndTag, blockBeginTag, blockEndTag);
+            return AddFictiveToken(lineEndTag).AddFictiveToken(blockBeginTag).AddFictiveToken(blockEndTag);
+        }
 
         /// <summary>
         /// Performing some actions to register an operation
@@ -452,19 +467,7 @@ namespace CompileLib.Parsing
                             if (!tokenTags.Contains(tag) && !nonTokenTags.Contains(tag) && !fictiveNonTokens.Contains(tag))
                                 throw new ParsingEngineBuildingException(p.Handler, p.Handler.GetParameters()[i], $"Tag {tag} is not defined");
 
-            // build lexer
             (int, IMachine)[] tokensForLexer = new (int, IMachine)[keywords.Count + tokens.Count];
-            int ptr = 0;
-            foreach (var kw in keywords)
-                tokensForLexer[ptr] = (ptr++, new TokenMachine(kw));
-            foreach (var (_, machine) in tokens)
-                tokensForLexer[ptr] = (ptr++, machine);
-            var lexer = new Lexer(tokensForLexer);
-
-            // build parser
-
-            //TODO!!!!!!!!!!!!!!!!! Add expression sets performing
-
             // first go keywords, then ordinary tokens, then fictive tokens
             SortedDictionary<string, int> keywordToIndex = new(); // [no ~]
             SortedDictionary<string, int> tokenTagToIndex = new(); // [no ~] part of tagToIndex
@@ -481,22 +484,24 @@ namespace CompileLib.Parsing
             {
                 tokenName.Add(TAG_KEYWORD);
                 showedTokensNames.Add(ProductionBodyElement.ShowKeyword(kw));
-                keywordToIndex.Add(kw, totalTokensCount++);
+                keywordToIndex.Add(kw, totalTokensCount);
+                tokensForLexer[totalTokensCount] = (totalTokensCount++, new TokenMachine(kw));
             }
-            foreach (var (tag, _) in tokens)
+            foreach (var (tag, machine) in tokens)
             {
                 if (tag == TAG_SKIP)
                 {
                     showedTokensNames.Add("[whitespace]");
-                    whitespaces.Add(totalTokensCount++);
+                    whitespaces.Add(totalTokensCount);
                 }
                 else
                 {
                     showedTokensNames.Add(tag);
                     tokenTagToIndex.Add(tag, totalTokensCount);
-                    tagToIndex.Add(tag, ~(totalTokensCount++));
+                    tagToIndex.Add(tag, ~totalTokensCount);
                 }
                 tokenName.Add(tag);
+                tokensForLexer[totalTokensCount] = (totalTokensCount++, machine);
             }
             foreach (var tag in fictiveTokens)
             {
@@ -504,7 +509,18 @@ namespace CompileLib.Parsing
                 tokenName.Add(tag);
                 showedTokensNames.Add(tag);
             }
-            
+
+            Lexer lexer;
+            if(params2d.HasValue)
+            {
+                var (lineEnd, blockBegin, blockEnd) = params2d.Value;
+                lexer = new(tokensForLexer, ~tagToIndex[lineEnd], ~tagToIndex[blockBegin], ~tagToIndex[blockEnd]);
+            }
+            else
+            {
+                lexer = new(tokensForLexer);
+            }
+
             List<string> showedNonTokensNames = new();
             List<string> nonTokenName = showedNonTokensNames; // for now, it's alias but in the future it can be changed
             int totalNonTokensCount = 0;

@@ -50,5 +50,8 @@ namespace CompileLib.Common
             const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
             return Activator.CreateInstance(t, flags, null, parameters, CultureInfo.InvariantCulture);
         }
+
+        public static Token ToToken(this CodeChar[] array, int? tokenID)
+            => new (tokenID, new(Array.ConvertAll(array, cc => cc.c)), array[0].line, array[0].column);
     }
 }
