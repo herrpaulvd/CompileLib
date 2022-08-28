@@ -13,8 +13,8 @@ namespace CompileLib.Parsing
     /// </summary>
     internal struct ProductionBodyElement
     {
-        public object TagType;
-        public object RepetitionCount;
+        public object TagType; // Attribute | HelperTag
+        public object RepetitionCount; // Attribute
         public MethodInfo Method;
         public ParameterInfo Parameter;
 
@@ -64,7 +64,7 @@ namespace CompileLib.Parsing
                     result = "";
                 }
 
-                Debug.Assert(RepetitionCount is SingleAttribute);
+                //Debug.Assert(RepetitionCount is SingleAttribute);
                 return result;
             }
         }

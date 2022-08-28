@@ -25,6 +25,9 @@ namespace CompileLib.Parsing
         private const string errorUsedNonTokenTag = "The tag is already used as a non-token tag";
         private const string errorUsedFictiveNonTokenTag = "The token is already defined as a fictive non-token";
         private const string errorStartIsInvalid = "Start must be non-fictive non-token tag";
+        private const string errorEHDLastRequired = "Error Handler attribute must mark the last parameter of the method";
+        private static readonly string errorEHDInvalidType = "Error Handler attribute must mark the last parameter with the type " + typeof(ErrorHandlingDecider).FullName;
+        private const string errorValueType = "No Value Type is allowed to be production method parameter";
 
         /// <summary>
         /// Set of all added tokens' tags INCLUDING fictives
@@ -51,9 +54,31 @@ namespace CompileLib.Parsing
         /// </summary>
         private readonly List<Production> productions = new();
         /// <summary>
-        /// Array of all added non-fictive tokens
+        /// Array of all added fictive non-tokens
         /// </summary>
         private readonly SortedSet<string> fictiveNonTokens = new();
+        /// <summary>
+        /// Set of all expression tags with the corresponding operations
+        /// </summary>
+        private readonly SortedDictionary<string, ExpressionTagOperationsSet> operations = new();
+
+        /// <summary>
+        /// Performing some actions to register an operation
+        /// </summary>
+        /// <param name="tag">Expression tag</param>
+        /// <param name="handler">Production handler method</param>
+        /// <param name="sign">Sign of the operation</param>
+        /// <param name="priority">Priority of the operation</param>
+        /// <param name="binary">If true, the op is binary, unary otherwise</param>
+        /// <param name="right">If true, the op is right-associative, left- otherwise</param>
+        /// <exception cref="ParsingEngineBuildingException"></exception>
+        private void AddOperation(string tag, MethodInfo handler, string sign, int priority, bool binary, bool right)
+        {
+            if (!operations.ContainsKey(tag))
+                operations.Add(tag, new(tag));
+            operations[tag].AddOperation(handler, sign, priority, binary, right);
+            AddKeyword(sign);
+        }
 
         /// <summary>
         /// Checks if tag is used and adds it into the set otherwise
@@ -162,6 +187,205 @@ namespace CompileLib.Parsing
             return this;
         }
 
+        private void AddSetTagProduction(MethodInfo method, SetTagAttribute tagAttr)
+        {
+            // now it's correct or not correct SetTag-production method
+            if (tagAttr.Name is null)
+                throw new ParsingEngineBuildingException(method, errorUnexpectedNullTag);
+            if (IsSpecial(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUnexpectedSpecialTag);
+            if (tokenTags.Contains(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUsedTokenTag);
+            if (fictiveNonTokens.Contains(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUsedFictiveNonTokenTag);
+            var p = new Production
+            {
+                Tag = tagAttr.Name.ToTag<HelperTag>(),
+                Handler = method,
+                Body = new()
+            };
+            var parameters = method.GetParameters();
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var e = new ProductionBodyElement();
+                var param = parameters[i];
+                e.Method = method;
+                e.Parameter = param;
+
+                if (param.ParameterType.IsValueType)
+                    throw new ParsingEngineBuildingException(method, param, errorValueType);
+
+                // handler attrs
+                var errorHandlerAttr = param.GetCustomAttribute<ErrorHandlerAttribute>();
+                if (errorHandlerAttr is not null)
+                {
+                    if (i != parameters.Length - 1)
+                        throw new ParsingEngineBuildingException(method, param, errorEHDLastRequired);
+                    if (param.ParameterType != typeof(ErrorHandlingDecider))
+                        throw new ParsingEngineBuildingException(method, param, errorEHDInvalidType);
+                    p.HasErrorHandler = true;
+                    break;
+                }
+
+                // requiring attrs
+                var requireTagsAttr = param.GetCustomAttribute<RequireTagsAttribute>();
+                if (requireTagsAttr is not null)
+                {
+                    if (requireTagsAttr.Tags.Count == 0)
+                        throw new ParsingEngineBuildingException(method, param, "At least one tag must be required");
+                    foreach (var tag in requireTagsAttr.Tags)
+                    {
+                        if (tag is null)
+                            throw new ParsingEngineBuildingException(method, param, "Null-tag cannot be required");
+                        else if (IsSpecial(tag))
+                            throw new ParsingEngineBuildingException(method, param, "Special tag cannot be required");
+                    }
+                    e.SetTagType(requireTagsAttr);
+                }
+                var keywordAttr = param.GetCustomAttribute<KeywordsAttribute>();
+                if (keywordAttr is not null)
+                {
+                    if (keywordAttr.Keywords is null)
+                        throw new ParsingEngineBuildingException(method, param, "Null-token cannot be required");
+                    e.SetTagType(keywordAttr);
+                }
+                // exactly one such attr must exist
+                if (e.TagType is null)
+                    throw new ParsingEngineBuildingException(method, param, "Exactly one tag requiring attribute must mark the parameter");
+
+                // count attrs
+                var singleAttr = param.GetCustomAttribute<SingleAttribute>();
+                if (singleAttr is not null)
+                {
+                    e.SetRepetitionCount(singleAttr);
+                }
+                var optionalAttr = param.GetCustomAttribute<OptionalAttribute>();
+                if (optionalAttr is not null)
+                {
+                    e.SetRepetitionCount(optionalAttr);
+                }
+                var manyAttr = param.GetCustomAttribute<ManyAttribute>();
+                if (manyAttr is not null)
+                {
+                    e.SetRepetitionCount(manyAttr);
+                }
+                var togetherWithAttr = param.GetCustomAttribute<TogetherWithAttribute>();
+                if (togetherWithAttr is not null)
+                {
+                    if (i == 0)
+                        throw new ParsingEngineBuildingException(method, param, "The first parameter cannot be marked with TogetherWith attribute");
+                    if (p.Body[i - 1].RepetitionCount is SingleAttribute)
+                        e.SetRepetitionCount(SingleAttribute.Instance);
+                    else
+                        e.SetRepetitionCount(togetherWithAttr);
+                }
+                // set single by default
+                e.RepetitionCount ??= SingleAttribute.Instance;
+                p.Body.Add(e);
+            }
+
+            //successful, we must add the production, some tags and keywords
+            productions.Add(p);
+            nonTokenTags.Add(tagAttr.Name);
+            foreach (var e in p.Body)
+                if (e.TagType is KeywordsAttribute keywordAttr)
+                    keywords.UnionWith(keywordAttr.Keywords);
+        }
+
+        private void AddBinaryOperations(MethodInfo method, string tag, BinaryOperationAttribute[] operations)
+        {
+            var parameters = method.GetParameters();
+            int n = parameters.Length;
+            int argsNumber = ExpressionTagOperationsSet.BinaryMethodParamsCount;
+            for(int i = 0; i < n; i++)
+            {
+                var param = parameters[i];
+                if (param.ParameterType.IsValueType)
+                    throw new ParsingEngineBuildingException(method, param, errorValueType);
+
+                // handler attrs
+                var errorHandlerAttr = param.GetCustomAttribute<ErrorHandlerAttribute>();
+                if (errorHandlerAttr is not null)
+                {
+                    if (i != n - 1)
+                        throw new ParsingEngineBuildingException(method, param, errorEHDLastRequired);
+                    if (param.ParameterType != typeof(ErrorHandlingDecider))
+                        throw new ParsingEngineBuildingException(method, param, errorEHDInvalidType);
+                    argsNumber++;
+                    break;
+                }
+            }
+
+            if (n != argsNumber)
+                throw new ParsingEngineBuildingException(method, $"Expected {argsNumber} parameters but {n} found");
+
+            foreach (var attr in operations)
+                AddOperation(tag, method, attr.Sign, attr.Priority, true, attr.IsRightAssociative);
+        }
+
+        private void AddUnaryOperations(MethodInfo method, string tag, UnaryOperationAttribute[] operations)
+        {
+            var parameters = method.GetParameters();
+            int n = parameters.Length;
+            int argsNumber = ExpressionTagOperationsSet.UnaryMethodParamsCount;
+            for (int i = 0; i < n; i++)
+            {
+                var param = parameters[i];
+                if (param.ParameterType.IsValueType)
+                    throw new ParsingEngineBuildingException(method, param, errorValueType);
+
+                // handler attrs
+                var errorHandlerAttr = param.GetCustomAttribute<ErrorHandlerAttribute>();
+                if (errorHandlerAttr is not null)
+                {
+                    if (i != n - 1)
+                        throw new ParsingEngineBuildingException(method, param, errorEHDLastRequired);
+                    if (param.ParameterType != typeof(ErrorHandlingDecider))
+                        throw new ParsingEngineBuildingException(method, param, errorEHDInvalidType);
+                    argsNumber++;
+                    break;
+                }
+            }
+
+            if (n != argsNumber)
+                throw new ParsingEngineBuildingException(method, $"Expected {argsNumber} parameters but {n} found");
+
+            foreach (var attr in operations)
+                AddOperation(tag, method, attr.Sign, attr.Priority, false, attr.IsSuffix);
+        }
+
+        private void AddSetExpressionTagProduction(MethodInfo method, SetExpressionTagAttribute tagAttr)
+        {
+            // now it's correct or not correct SetExpressionTag-production method
+            if (tagAttr.Name is null)
+                throw new ParsingEngineBuildingException(method, errorUnexpectedNullTag);
+            if (IsSpecial(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUnexpectedSpecialTag);
+            if (tokenTags.Contains(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUsedTokenTag);
+            if (fictiveNonTokens.Contains(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUsedFictiveNonTokenTag);
+
+            BinaryOperationAttribute[] binaries = method.GetCustomAttributes<BinaryOperationAttribute>().ToArray();
+            UnaryOperationAttribute[] unaries = method.GetCustomAttributes<UnaryOperationAttribute>().ToArray();
+
+            if(binaries.Length == 0)
+            {
+                if (unaries.Length == 0)
+                    throw new ParsingEngineBuildingException(method, "The method must be marked with non-zero number of either binary operations or unary operations attributes");
+                else
+                    AddUnaryOperations(method, tagAttr.Name, unaries);
+            }
+            else
+            {
+                if (unaries.Length == 0)
+                    AddBinaryOperations(method, tagAttr.Name, binaries);
+                else
+                    throw new ParsingEngineBuildingException(method, "The method cannot be marked with binary operations and unary operations attributes at the same time");
+            }
+            nonTokenTags.Add(tagAttr.Name);
+        }
+
         /// <summary>
         /// Adds production methods to the Parsing Engine
         /// </summary>
@@ -172,118 +396,24 @@ namespace CompileLib.Parsing
             // method is considered as production method <=>:
             // 1) it is public static
             // 2) returns something but void
-            // 3) is marked with SetTag attribute
+            // 3) is marked with SetTag OR SetExpressionTag attribute
             // This method (AddProductions) checks all production methods of t,
             // then either throws an Exception if any one is incorrect,
             // or adds all the methods to productions list
 
             foreach(var method in t.GetMethods().Where(m => m.IsPublic && m.IsStatic && m.ReturnType != typeof(void)))
             {
-                var tagAttr = method.GetCustomAttribute<SetTagAttribute>();
-                if(tagAttr is not null)
+                var setTagAttr = method.GetCustomAttribute<SetTagAttribute>();
+                var setExprTagAttr = method.GetCustomAttribute<SetExpressionTagAttribute>();
+                if (setTagAttr is not null)
                 {
-                    // now it's correct or not correct production method
-                    if(tagAttr.Name is null)
-                        throw new ParsingEngineBuildingException(method, errorUnexpectedNullTag);
-                    if(IsSpecial(tagAttr.Name))
-                        throw new ParsingEngineBuildingException(method, errorUnexpectedSpecialTag);
-                    if(tokenTags.Contains(tagAttr.Name))
-                        throw new ParsingEngineBuildingException(method, errorUsedTokenTag);
-                    if(fictiveNonTokens.Contains(tagAttr.Name))
-                        throw new ParsingEngineBuildingException(method, errorUsedFictiveNonTokenTag);
-                    var p = new Production
-                    {
-                        Tag = tagAttr.Name.ToTag<HelperTag>(),
-                        Handler = method,
-                        Body = new()
-                    };
-                    var parameters = method.GetParameters();
-                    for(int i = 0; i < parameters.Length; i++)
-                    {
-                        var e = new ProductionBodyElement();
-                        var param = parameters[i];
-                        e.Method = method;
-                        e.Parameter = param;
-
-                        if (param.ParameterType.IsValueType)
-                            throw new ParsingEngineBuildingException(method, param, "No Value Type is allowed to be production method parameter");
-
-                        // handler attrs
-                        var errorHandlerAttr = param.GetCustomAttribute<ErrorHandlerAttribute>();
-                        if (errorHandlerAttr is not null)
-                        {
-                            if (i != parameters.Length - 1)
-                                throw new ParsingEngineBuildingException(method, param, "Error Handler attribute must mark the last parameter of the method");
-                            if (param.ParameterType != typeof(ErrorHandlingDecider))
-                                throw new ParsingEngineBuildingException(method, param, "Error Handler attribute must mark the last parameter with the type " + typeof(ErrorHandlingDecider).FullName);
-                            p.HasErrorHandler = true;
-                            break;
-                        }
-
-                        // requiring attrs
-                        var requireTagsAttr = param.GetCustomAttribute<RequireTagsAttribute>();
-                        if (requireTagsAttr is not null)
-                        {
-                            if (requireTagsAttr.Tags.Count == 0)
-                                throw new ParsingEngineBuildingException(method, param, "At least one tag must be required");
-                            foreach(var tag in requireTagsAttr.Tags)
-                            {
-                                if (tag is null)
-                                    throw new ParsingEngineBuildingException(method, param, "Null-tag cannot be required");
-                                else if (IsSpecial(tag))
-                                    throw new ParsingEngineBuildingException(method, param, "Special tag cannot be required");
-                            }
-                            e.SetTagType(requireTagsAttr);
-                        }
-                        var keywordAttr = param.GetCustomAttribute<KeywordsAttribute>();
-                        if (keywordAttr is not null)
-                        {
-                            if(keywordAttr.Keywords is null)
-                                throw new ParsingEngineBuildingException(method, param, "Null-token cannot be required");
-                            e.SetTagType(keywordAttr);
-                        }
-                        // exactly one such attr must exist
-                        if (e.TagType is null)
-                            throw new ParsingEngineBuildingException(method, param, "Exactly one tag requiring attribute must mark the parameter");
-
-                        // count attrs
-                        var singleAttr = param.GetCustomAttribute<SingleAttribute>();
-                        if (singleAttr is not null)
-                        {
-                            e.SetRepetitionCount(singleAttr);
-                        }
-                        var optionalAttr = param.GetCustomAttribute<OptionalAttribute>();
-                        if (optionalAttr is not null)
-                        {
-                            e.SetRepetitionCount(optionalAttr);
-                        }
-                        var manyAttr = param.GetCustomAttribute<ManyAttribute>();
-                        if (manyAttr is not null)
-                        {
-                            e.SetRepetitionCount(manyAttr);
-                        }
-                        var togetherWithAttr = param.GetCustomAttribute<TogetherWithAttribute>();
-                        if (togetherWithAttr is not null)
-                        {
-                            if (i == 0)
-                                throw new ParsingEngineBuildingException(method, param, "The first parameter cannot be marked with TogetherWith attribute");
-                            if (p.Body[i - 1].RepetitionCount is SingleAttribute)
-                                e.SetRepetitionCount(SingleAttribute.Instance);
-                            else
-                                e.SetRepetitionCount(togetherWithAttr);
-                        }
-                        // set single by default
-                        e.RepetitionCount ??= SingleAttribute.Instance;
-                        p.Body.Add(e);
-                    }
-
-                    //successful, we must add the production, some tags and keywords
-                    productions.Add(p);
-                    nonTokenTags.Add(tagAttr.Name);
-                    foreach(var e in p.Body)
-                        if(e.TagType is KeywordsAttribute keywordAttr)
-                            keywords.UnionWith(keywordAttr.Keywords);
+                    if (setExprTagAttr is not null)
+                        throw new ParsingEngineBuildingException(method, "Production method cannot be marked with SetTag and SetExpressionTag attributes at the same time");
+                    AddSetTagProduction(method, setTagAttr);
                 }
+                else if (setExprTagAttr is not null)
+                    AddSetExpressionTagProduction(method, setExprTagAttr);
+                // otherwise the method is not a production method
             }
 
             return this;
@@ -332,6 +462,8 @@ namespace CompileLib.Parsing
             var lexer = new Lexer(tokensForLexer);
 
             // build parser
+
+            //TODO!!!!!!!!!!!!!!!!! Add expression sets performing
 
             // first go keywords, then ordinary tokens, then fictive tokens
             SortedDictionary<string, int> keywordToIndex = new(); // [no ~]
@@ -382,6 +514,17 @@ namespace CompileLib.Parsing
                 showedNonTokensNames.Add(tag);
             }
 
+            //DEBUG ONLY
+            //string logfilename = "output" + new string(DateTime.Now.ToString().Where(char.IsDigit).ToArray()) + ".txt";
+            //StringBuilder log = new();
+            //for (int i = 0; i < showedTokensNames.Count; i++)
+            //    log.Append($"{~i} = {showedTokensNames[i]}\n");
+            //for (int i = 0; i < showedNonTokensNames.Count; i++)
+            //    log.Append($"{i} = {showedNonTokensNames[i]}\n");
+            //System.IO.File.WriteAllText(logfilename, log.ToString());
+            //Console.WriteLine("Successful writing log to " + logfilename);
+            //END
+
             int minNonHelperTag = totalNonTokensCount;
             List<HelperTag> allHelperTags = new();
 
@@ -396,8 +539,13 @@ namespace CompileLib.Parsing
                 }
             }
 
+            List<(int, string)> carryBans = new();
+            List<(int, string)> foldingBans = new();
+            foreach (var set in operations.Values)
+                set.GetProductions(splittedProductions, foldingBans, carryBans);
+
             var grammarBuilder = new GrammarBuilder(totalTokensCount, totalNonTokensCount, tagToIndex[start]);
-            
+
             string TokenTypeToString(int? id)
                 => id.HasValue ? (id.Value == totalTokensCount ? TAG_EOF : tokenName[id.Value]) : TAG_UNDEFINED;
             string NonTokenTypeToString(int? id)
@@ -406,7 +554,6 @@ namespace CompileLib.Parsing
             int GetIndexOfTag(Alternation<string, HelperTag> tag)
                 => tag.FirstType() ? tagToIndex[tag.First] : helperTagToIndex[tag.Second.ID];
 
-            List<int> addedProductionInfo = new();
             for(int j = 0; j < splittedProductions.Count; j++)
             {
                 var p = splittedProductions[j];
@@ -474,24 +621,21 @@ namespace CompileLib.Parsing
                     body.ToArray(),
                     productionHandler,
                     p.HasErrorHandler ? errorHandler : null);
-                addedProductionInfo.Add(j);
             }
 
-            // searching for greedies
-            for(int i = 0; i < addedProductionInfo.Count; i++)
+            for(int i = 0; i < splittedProductions.Count; i++)
             {
-                int index = addedProductionInfo[i];
-                if (splittedProductions[index].Greedy)
+                if (splittedProductions[i].Greedy != 0)
                 {
-                    var pStart = splittedProductions[index].Tag;
-                    for (int j = 0; j < addedProductionInfo.Count; j++)
-                    {
-                        int otherIndex = addedProductionInfo[j];
-                        if (i != j && splittedProductions[otherIndex].Tag.Equals(pStart))
-                            grammarBuilder.AddBanRule(j, i);
-                    }
+                    int j = i + splittedProductions[i].Greedy;
+                    grammarBuilder.AddBanFoldingWhenFirstRule(j, i);
                 }
             }
+
+            foreach (var (prod, kw) in foldingBans)
+                grammarBuilder.AddBanFoldingWhenCharacterRule(prod, ~keywordToIndex[kw]);
+            foreach (var (prod, kw) in carryBans)
+                grammarBuilder.AddBanCarryWhenCharacterRule(prod, ~keywordToIndex[kw]);
 
             try
             {
@@ -503,10 +647,9 @@ namespace CompileLib.Parsing
                 SortedDictionary<long, int> secondOwner = new(); // may be the second owner
                 SortedDictionary<long, List<int>> helperTagProductions = new(); // ht to productions starting with it
 
-                for (int i = 0; i < addedProductionInfo.Count; i++)
+                for (int i = 0; i < splittedProductions.Count; i++)
                 {
-                    int index = addedProductionInfo[i];
-                    var p = splittedProductions[index];
+                    var p = splittedProductions[i];
                     if (p.Tag.SecondType())
                     {
                         var ht = p.Tag.Second;
@@ -517,15 +660,13 @@ namespace CompileLib.Parsing
                     foreach (var element in p.Body)
                         if (element.TagType is HelperTag subht)
                         {
-                            if(p.Tag.SecondType())
-                            {
-                                var parentTag = p.Tag.Second;
-                                if (parentTag.ID == subht.ID) continue;
-                                if (helperTagOwner.ContainsKey(subht.ID))
-                                    secondOwner.Add(subht.ID, i);
-                                else
-                                    helperTagOwner.Add(subht.ID, i);
-                            }
+                            if (p.Tag.SecondType() && p.Tag.Second.ID == subht.ID) 
+                                continue;
+                            if (helperTagOwner.ContainsKey(subht.ID))
+                                secondOwner.Add(subht.ID, i);
+                            else
+                                helperTagOwner.Add(subht.ID, i);
+
                         }
                 }
 
@@ -533,8 +674,7 @@ namespace CompileLib.Parsing
 
                 void PrintProduction(int production, StringBuilder output)
                 {
-                    var info = addedProductionInfo[production];
-                    var p = splittedProductions[info];
+                    var p = splittedProductions[production];
                     output.Append($"{p.Tag} -> \n{string.Join('\n', p.Body.Select(e => $"\t[{e.Method.Name}(...,{e.Parameter.Name},...)]{e.FullTagName}"))}\n");
                 }
 
@@ -543,9 +683,8 @@ namespace CompileLib.Parsing
                     if (productionsUsed.Add(production))
                     {
                         PrintProduction(production, output);
-                        int splittedProductionIndex = addedProductionInfo[production];
 
-                        foreach (var e in splittedProductions[splittedProductionIndex].Body)
+                        foreach (var e in splittedProductions[production].Body)
                             if (e.TagType is HelperTag ht)
                                 foreach (var p in helperTagProductions[ht.ID])
                                 {
@@ -561,17 +700,10 @@ namespace CompileLib.Parsing
                     DependenciesDFS(p1, output, true);
                     if (p2 >= 0) DependenciesDFS(p2, output, true);
 
-                    int splittedProductionIndex = addedProductionInfo[p1];
-                    var start = splittedProductions[splittedProductionIndex].Tag;
+                    var start = splittedProductions[p1].Tag;
                     if (start.SecondType())
                     {
                         var hts = start.Second;
-                        Debug.Assert(
-                            p2 < 0
-                            || addedProductionInfo[p2] is int secondIndex
-                            && splittedProductions[secondIndex].Tag.SecondType()
-                            && helperTagOwner[splittedProductions[secondIndex].Tag.Second.ID] == helperTagOwner[hts.ID]);
-
                         p1 = helperTagOwner[hts.ID];
                         p2 = secondOwner.ContainsKey(hts.ID) ? secondOwner[hts.ID] : -1;
                         output.Append("being a part of\n");
@@ -593,8 +725,7 @@ namespace CompileLib.Parsing
                         return new(null, null, opponent.IsCarry);
 
                     int p = opponent.Production.Value;
-                    var info = addedProductionInfo[p];
-                    var prod = splittedProductions[info];
+                    var prod = splittedProductions[p];
                     return new(
                         prod.Tag.ToString(),
                         GetFullView(p),

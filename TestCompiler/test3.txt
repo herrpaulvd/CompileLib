@@ -120,29 +120,11 @@ class Program
 	{
 		while(1)
 		{
-			var float64 a = float64(ReadInt("a"));
-			var float64 b = float64(ReadInt("b"));
-			PrintFloat("a + b", a + b);
-			PrintFloat("a - b", a - b);
-			PrintFloat("a * b", a * b);
-			PrintFloat("a / b", a / b);
-			//PrintInt("a % b", a % b);
-			//PrintInt("a & b", a & b);
-			//PrintInt("a | b", a | b);
-			//PrintInt("a ^ b", a ^ b);
-			//PrintInt("a && b", a && b);
-			//PrintInt("a || b", a || b);
-			//PrintInt("a << b", a << b);
-			//PrintInt("a >> b", a >> b);
-			PrintInt("a == b", a == b);
-			PrintInt("a != b", a != b);
-			PrintInt("a < b", a < b);
-			PrintInt("a > b", a > b);
-			PrintInt("a <= b", a <= b);
-			PrintInt("a >= b", a >= b);
-			//PrintInt("!a", !a);
-			//PrintInt("~a", ~a);
-			PrintFloat("-a", -a);
+			var uint64 a = ReadInt("a");
+			var uint64 b = ReadInt("b");
+			var uint64 c = ReadInt("c");
+			var uint64 d = ReadInt("d");
+			String.FromInt(a * b + c / d).WriteLine();
 		}
 	}
 }

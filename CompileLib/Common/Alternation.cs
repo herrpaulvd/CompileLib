@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -29,6 +30,16 @@ namespace CompileLib.Common
         public override string? ToString()
         {
             return _value.ToString();
+        }
+
+        public override bool Equals([NotNullWhen(true)] object? obj)
+        {
+            return obj is Alternation<TFirst, TSecond> other && _value.Equals(other._value);
+        }
+
+        public override int GetHashCode()
+        {
+            throw new NotImplementedException();
         }
     }
 }

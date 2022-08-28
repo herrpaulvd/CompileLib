@@ -16,7 +16,7 @@ namespace CompileLib.Parsing
     {
         public Alternation<string, HelperTag> Tag;
         public bool HasErrorHandler;
-        public bool Greedy;
+        public int Greedy; // 0 if not greedy, delta index to the pairwise otherwise
         public int Divisor;
         public List<ProductionBodyElement> Body;
         public MethodInfo Handler;
@@ -37,7 +37,7 @@ namespace CompileLib.Parsing
                     HasErrorHandler = hasErrorHandler,
                     Body = new(),
                     Handler = self.Handler,
-                    Greedy = false,
+                    Greedy = 0,
                     Divisor = self.Divisor
                 };
 
@@ -94,7 +94,7 @@ namespace CompileLib.Parsing
                     
                     Production emptySub = MakeCopy(subTag.ToTag(), true); // empty production
                     Production sub = MakeCopy(subTag.ToTag(), true);
-                    sub.Greedy = optionalAttribute.Greedy;
+                    sub.Greedy = optionalAttribute.Greedy ? -1 : 0;
                     sub.Body.Add(SplitBodyElement(self.Body[i]));
                     int divisor = 1;
                     for (i++; i < self.Body.Count && self.Body[i].RepetitionCount is TogetherWithAttribute; i++)

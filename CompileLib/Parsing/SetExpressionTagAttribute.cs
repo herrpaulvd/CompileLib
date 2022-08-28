@@ -7,10 +7,11 @@ using System.Threading.Tasks;
 namespace CompileLib.Parsing
 {
     /// <summary>
-    /// Used for tagging methods to identify production, which left part is defined with the attribute
+    /// Used for tagging methods to identify operations' production.
+    /// Left part and operands are the same being described with the attribute
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-    public class SetTagAttribute : Attribute
+    public class SetExpressionTagAttribute : Attribute
     {
         /// <summary>
         /// Name of the tag
@@ -20,7 +21,7 @@ namespace CompileLib.Parsing
         /// 
         /// </summary>
         /// <param name="name">Name of the tag</param>
-        public SetTagAttribute(string name)
+        public SetExpressionTagAttribute(string name)
         {
             Name = name;
         }

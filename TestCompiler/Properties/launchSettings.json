@@ -2,7 +2,7 @@
   "profiles": {
     "TestCompiler": {
       "commandName": "Project",
-      "commandLineArgs": "test2.txt result.exe"
+      "commandLineArgs": "test3.txt result.exe"
     }
   }
 }

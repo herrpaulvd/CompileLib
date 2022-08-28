@@ -18,7 +18,7 @@ try
         .AddToken("float", @"([1-9][0-9]*|0)\.[0-9]*|\.[0-9]+")
         .AddToken(SpecialTags.TAG_SKIP, "[[:space:]]")
         .AddToken(SpecialTags.TAG_SKIP, @"//[^[:cntrl:]]*")
-        .AddProductions<Syntax>()
+        .AddProductions<Syntax_v2>()
         .Create("global");
 }
 catch(Exception ex)
@@ -48,9 +48,8 @@ try
         Console.WriteLine(Syntax.ErrorList);
     }
 }
-catch(ArgumentException ex)
+catch(Exception ex)
 {
-    // TODO: какая-то ошибка, вместо типа вылазеет [helper tag]#43 проследить
     Console.WriteLine("There are errors:");
     if (!Syntax.ErrorList.Empty()) Console.WriteLine(Syntax.ErrorList);
     Console.WriteLine(ex.Message);
