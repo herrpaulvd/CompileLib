@@ -302,12 +302,13 @@ namespace CompileLib.QuasiAsm
                         writeb(REX);
                 }
 
-                // ENTER
-                if (allocated > ushort.MaxValue)
-                    throw new Exception("The allocated stack size is too long. Try to reduce the variable count or their sizes");
-                writeb(0xC8); // ENTER opcode
-                writeptr(&allocated, 2); // stack frame
-                writeb(0); // nested stack frame
+                // using long ENTER variant that must be executed faster
+                writearr(
+                    0x55, // push RBP
+                    0x48, 0x89, 0xE5, // mov RBP, RSP
+                    0x48, 0x81, 0xEC // sub RSP, <count>
+                    );
+                writeptr(&allocated, 4); // <count> = allocated
 
                 void movRR(byte REX2, byte MODRM2, AsmOperand operand)
                 {
@@ -969,19 +970,19 @@ namespace CompileLib.QuasiAsm
                         movRV(c, ID_RCX);
                         writeb((byte)(asize == 4 ? 0xD9 : 0xDD));
                         writeb(0x00); // fld [RAX]
-                        switch(csize) // fistp ? PTR [RCX]
+                        switch(csize) // fisttp ? PTR [RCX] (one needs to truncate)
                         {
                             case 2:
                                 writeb(0xDF);
-                                writeb(0x19);
+                                writeb(0x09);
                                 break;
                             case 4:
                                 writeb(0xDB);
-                                writeb(0x19);
+                                writeb(0x09);
                                 break;
                             case 8:
-                                writeb(0xDF);
-                                writeb(0x39);
+                                writeb(0xDD);
+                                writeb(0x09);
                                 break;
                             default:
                                 throw new NotImplementedException();

@@ -126,6 +126,7 @@ class Program
 			PrintFloat("a - b", a - b);
 			PrintFloat("a * b", a * b);
 			PrintFloat("a / b", a / b);
+			PrintInt("a / b(int)", uint64(a / b));
 			//PrintInt("a % b", a % b);
 			//PrintInt("a & b", a & b);
 			//PrintInt("a | b", a | b);
