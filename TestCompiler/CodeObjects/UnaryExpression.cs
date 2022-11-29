@@ -53,13 +53,13 @@ namespace TestCompiler.CodeObjects
                     type = otype;
                     return ~expr;
                 case "-":
-                    if (!otype.IsIntegerType(name2class))
-                        throw new CompilationError("Integer type expected", Operand.Line, Operand.Column);
+                    if (!otype.IsIntegerType(name2class) && !otype.IsFloatType(name2class))
+                        throw new CompilationError("Integer or float type expected", Operand.Line, Operand.Column);
                     type = otype;
                     return -expr;
                 case "+":
-                    if (!otype.IsIntegerType(name2class))
-                        throw new CompilationError("Integer type expected", Operand.Line, Operand.Column);
+                    if (!otype.IsIntegerType(name2class) && !otype.IsFloatType(name2class))
+                        throw new CompilationError("Integer or float type expected", Operand.Line, Operand.Column);
                     type = otype;
                     return expr;
                 case "*":

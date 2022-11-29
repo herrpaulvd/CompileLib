@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,7 +12,18 @@ namespace CompileLib.Parsing
     /// </summary>
     public class ParsingEngineBuildingException : Exception
     {
-        public ParsingEngineBuildingException(string msg) : base(msg)
-        { }
+        public ParsingEngineBuildingException(string message) : base(message)
+        {
+        }
+
+        public ParsingEngineBuildingException(MethodInfo method, ParameterInfo parameter, string message)
+            : this($"[Method {method.DeclaringType.Name}::{method.Name}, parameter {parameter.Name}] {message}")
+        {
+        }
+
+        public ParsingEngineBuildingException(MethodInfo method, string message)
+            : this($"[Method {method.DeclaringType.Name}::{method.Name}] {message}")
+        {
+        }
     }
 }

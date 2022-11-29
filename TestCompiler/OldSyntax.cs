@@ -326,7 +326,7 @@ namespace TestCompiler
 
         [SetTag("expression.atom")]
         public static Expression ReadAtom(
-            [RequireTags("id", "str")] Token token
+            [RequireTags("id", "str")] Parsed<string> token
             )
         {
             if (token.Tag == "id") return new ExprVariable(token.Self);

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace CompileLib.Parsing
 {
     /// <summary>
-    /// Used for tagging methods to include them in a group
+    /// Used for tagging methods to identify production, which left part is defined with the attribute
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
     public class SetTagAttribute : Attribute

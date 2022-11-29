@@ -7,30 +7,41 @@ using System.IO;
 
 namespace CompileLib.Parsing
 {
+    /// <summary>
+    /// Class for running parsers
+    /// </summary>
     public class ParsingEngine
     {
         private readonly LexerTools.Lexer lexer;
         private readonly ParserTools.LRMachine parser;
         private readonly Func<Common.Token, bool> tokenFilter;
-        private readonly Func<int, string> typeToStr;
+        private readonly Func<int?, string> tokenTypeToStr;
 
-        internal ParsingEngine(LexerTools.Lexer lexer, ParserTools.LRMachine parser, Func<Common.Token, bool> tokenFilter, Func<int, string> typeToStr)
+        internal ParsingEngine(LexerTools.Lexer lexer, ParserTools.LRMachine parser, Func<Common.Token, bool> tokenFilter, Func<int?, string> tokenTypeToStr)
         {
             this.lexer = lexer;
             this.parser = parser;
             this.tokenFilter = tokenFilter;
-            this.typeToStr = typeToStr;
+            this.tokenTypeToStr = tokenTypeToStr;
         }
 
-        public T? Parse<T>(IEnumerable<char> stream)
+        /// <summary>
+        /// Method to parse the given char sequence
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="stream">the input</param>
+        /// <returns></returns>
+        /// <exception cref="AnalysisStopException"></exception>
+        public Parsed<T> Parse<T>(IEnumerable<char> stream)
+            where T : class
         {
             try
             {
-                return (T?)parser.Analyze(lexer.GetTokens(stream).Where(tokenFilter));
+                return new(parser.Analyze(lexer.GetTokens(stream).Where(tokenFilter)));
             }
             catch(ParserTools.LRStopException e)
             {
-                throw new AnalysisStopException(new Token(typeToStr(e.Token.Type), e.Token.Self, e.Token.Line, e.Token.Column));
+                throw new AnalysisStopException(new Parsed<string>(tokenTypeToStr(e.Token.Type), e.Token.Self, e.Token.Line, e.Token.Column));
             }
         }
 
@@ -40,7 +51,14 @@ namespace CompileLib.Parsing
                 yield return (char)stream.Read();
         }
 
-        public T? ParseFile<T>(string fileName)
+        /// <summary>
+        /// Method to parse the given file
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="fileName">the input file name</param>
+        /// <returns></returns>
+        public Parsed<T> ParseFile<T>(string fileName)
+            where T : class
         {
             using var stream = new StreamReader(fileName);
             return Parse<T>(FileStreamToEnumerable(stream));

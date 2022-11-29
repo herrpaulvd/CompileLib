@@ -6,8 +6,11 @@ using System.Threading.Tasks;
 
 namespace CompileLib.ParserTools
 {
+    /// <summary>
+    /// internal production handler interface
+    /// </summary>
     internal interface IProductionHandler
     {
-        object? Handle(object?[] children);
+        object? Handle(AnyParsed[] children, ref string tag);
     }
 }

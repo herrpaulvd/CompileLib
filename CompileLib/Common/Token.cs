@@ -6,14 +6,29 @@ using System.Threading.Tasks;
 
 namespace CompileLib.Common
 {
+    /// <summary>
+    /// Internal representation of lexems
+    /// </summary>
     internal struct Token
     {
-        public int Type;
+        /// <summary>
+        /// Type of the lexem. If null, the lexem is invalid
+        /// </summary>
+        public int? Type;
+        /// <summary>
+        /// The lexem itself
+        /// </summary>
         public string Self;
+        /// <summary>
+        /// The line coordinate
+        /// </summary>
         public int Line;
+        /// <summary>
+        /// The column coordinate
+        /// </summary>
         public int Column;
 
-        public Token(int type, string self, int line, int column)
+        public Token(int? type, string self, int line, int column)
         {
             Type = type;
             Self = self;

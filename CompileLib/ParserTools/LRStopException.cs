@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace CompileLib.ParserTools
 {
+    /// <summary>
+    /// Exception throwed when LR(1)-analysis stops
+    /// </summary>
     internal class LRStopException : Exception
     {
         public Common.Token Token { get; }

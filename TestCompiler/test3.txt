@@ -1,0 +1,132 @@
+﻿class String
+{
+	private uint64 size;
+	private uint64 capacity;
+	private char[] buffer;
+
+	public uint64 Length() return size;
+
+	public static String ReadLine()
+	{
+		var String s = new;
+		s.buffer = System.ReadLine(&s.size);
+		s.capacity = s.size;
+		return s;
+	}
+
+	public static String FromCharArray(char[] buffer)
+	{
+		var String s = new;
+		s.buffer = buffer;
+		while(buffer[s.size] != uint64(0))
+			s.size = s.size + uint64(1);
+		s.capacity = s.size;
+		return s;
+	}
+
+	public void PushBack(char c)
+	{
+		if(size == capacity)
+		{
+			capacity = capacity * uint64(2);
+			buffer = char[](System.realloc(buffer, capacity * uint64(2)));
+		}
+
+		buffer[size] = c;
+		size = size + uint64(1);
+	}
+
+	public uint64 ToInt()
+	{
+		var uint64 result = uint64(0);
+		for(var uint64 i = uint64(0); i < size; i = i + uint64(1);)
+		{
+			var uint64 x = uint64(buffer[i] - '0');
+			result = result * uint64(10) + x;
+		}
+		return result;
+	}
+
+	public static String FromInt(uint64 x)
+	{
+		var String s = new;
+		s.size = uint64(0);
+		s.capacity = uint64(8);
+		s.buffer = char[](System.malloc(s.capacity * uint64(2)));
+		while(x > uint64(0))
+		{
+			var uint64 div = x / uint64(10);
+			var uint64 mod = x - div * uint64(10);
+			s.PushBack(char(mod + '0'));
+			x = div;
+		}
+		for(var uint64 i = uint64(0); i < s.size / uint64(2); i = i + uint64(1);)
+		{
+			var uint64 j = s.size - uint64(1) - i;
+			var char t = s.buffer[i];
+			s.buffer[i] = s.buffer[j];
+			s.buffer[j] = t;
+		}
+		if(s.size == uint64(0))
+			s.PushBack('0');
+
+		return s;
+	}
+
+	public void Write()
+	{
+		System.Write(buffer, size);
+	}
+
+	public void WriteLine()
+	{
+		Write();
+		System.Write("\r\n", uint64(2));
+	}
+}
+
+class Program
+{
+	private static uint64 ReadInt(char[] name)
+	{
+		String.FromCharArray(name).Write();
+		String.FromCharArray(" = ").Write();
+		return String.ReadLine().ToInt();
+	}
+
+	private static void PrintInt(char[] caption, uint64 result)
+	{
+		String.FromCharArray(caption).Write();
+		String.FromCharArray(": ").Write();
+		String.FromInt(result).WriteLine();
+	}
+
+	private static void PrintFloat(char[] caption, float64 result)
+	{
+		var uint64 intpart = uint64(result);
+		var uint64 floatpart = uint64(float64(1000) * (result - float64(intpart)));
+
+		String.FromCharArray(caption).Write();
+		String.FromCharArray(": ").Write();
+		String.FromInt(intpart).Write();
+		String.FromCharArray(".").Write();
+		var String fpart = String.FromInt(floatpart);
+		for(var uint64 i = uint64(0); i < uint64(3) - fpart.Length(); i = i + uint64(1);)
+			String.FromCharArray("0").Write();
+		fpart.WriteLine();
+	}
+	
+	public static void Main()
+	{
+		while(1)
+		{
+			var uint64 a = ReadInt("a");
+			var uint64 b = ReadInt("b");
+			var uint64 c = ReadInt("c");
+			var uint64 d = ReadInt("d");
+			String.FromInt(a * b + c / d).WriteLine();
+		}
+	}
+}
+
+

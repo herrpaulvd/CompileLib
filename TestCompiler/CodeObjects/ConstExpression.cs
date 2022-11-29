@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Globalization;
 
 namespace TestCompiler.CodeObjects
 {
@@ -62,6 +63,7 @@ namespace TestCompiler.CodeObjects
 
         private static readonly ELType CHAR = ELType.UInt16;
         private static readonly ELType PCHAR = CHAR.MakePointer();
+        private static readonly CultureInfo info = CultureInfo.GetCultureInfo("en-US");
 
         public override ELExpression CompileRight(CompilationParameters compilation)
         {
@@ -100,6 +102,18 @@ namespace TestCompiler.CodeObjects
                     return parseInt(8, 1);
                 case "int2":
                     return parseInt(2, 2);
+                case "float":
+                    type = new TypeExpression(-1, -1, "float64", 0);
+                    double value;
+                    try
+                    {
+                        value = double.Parse(Self, info);
+                    }
+                    catch (Exception)
+                    {
+                        throw new CompilationError("Invalid float64 const", Line, Column);
+                    }
+                    return compilation.Compiler.MakeConst(value);
                 default:
                     throw new NotImplementedException();
             }

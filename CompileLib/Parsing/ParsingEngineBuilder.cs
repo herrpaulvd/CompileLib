@@ -9,300 +9,116 @@ using System.Diagnostics;
 using CompileLib.LexerTools;
 using CompileLib.ParserTools;
 using static CompileLib.Parsing.SpecialTags;
+using CompileLib.Common;
+using System.Security;
+using System.Reflection.PortableExecutable;
 
 namespace CompileLib.Parsing
 {
     /// <summary>
-    /// Builder of parsing engine TODO Regex
+    /// Builder of parsers
     /// </summary>
     public class ParsingEngineBuilder
     {
-        private static readonly SingleAttribute defaultSingleAttribute = new();
-        private static readonly ParsingEngineBuildingException nullTagException = new("Null-tags are not allowed");
-        private static readonly ParsingEngineBuildingException specialTagException = new("Special tag is not allowed here");
-        private static readonly ParsingEngineBuildingException usedTokenTagException = new("The tag is already used as a token tag");
-        private static readonly ParsingEngineBuildingException usedNonTokenTagException = new("The tag is already used as a non-token tag");
+        private const string errorUnexpectedNullTag = "Unexpected null tag";
+        private const string errorUnexpectedSpecialTag = "Unexpected special tag";
+        private const string errorUsedTokenTag = "The tag is already used as a token tag";
+        private const string errorUsedNonTokenTag = "The tag is already used as a non-token tag";
+        private const string errorUsedFictiveNonTokenTag = "The token is already defined as a fictive non-token";
+        private const string errorStartIsInvalid = "Start must be non-fictive non-token tag";
+        private const string errorEHDLastRequired = "Error Handler attribute must mark the last parameter of the method";
+        private static readonly string errorEHDInvalidType = "Error Handler attribute must mark the last parameter with the type " + typeof(ErrorHandlingDecider).FullName;
+        private const string errorValueType = "No Value Type is allowed to be production method parameter";
 
-        private static Exception GetBuildingException(MethodInfo method, string message)
-        {
-            return new ParsingEngineBuildingException($"[Method {method.Name}] {message}");
-        }
-
-        private static Exception GetBuildingException(string methodName, string parameterName, string message)
-        {
-            return new ParsingEngineBuildingException($"[Method {methodName}, parameter {parameterName}] {message}");
-        }
-
-        private static Exception GetParsingException(MethodInfo method, ParameterInfo parameter, string message)
-        {
-            Debug.Assert(method.DeclaringType is not null);
-            return new ParsingException($"[Method {method.DeclaringType.Name}::{method.Name}, parameter {parameter.Name}] {message}");
-        }
-
-        private class HelperTag
-        {
-            private static long Counter = 0;
-
-            public string Name { get; private set; }
-            public object ParentAttribute { get; private set; }
-
-            public HelperTag(object parentAttribute)
-            {
-                Name = "#" + (Counter++);
-                ParentAttribute = parentAttribute;
-            }
-
-            public override string? ToString()
-            {
-                return ProductionBodyElement.ShowHelperTag(this);
-            }
-
-            public override bool Equals(object? obj)
-            {
-                return obj is HelperTag ht && ht.Name == Name;
-            }
-
-            public override int GetHashCode()
-            {
-                throw new NotImplementedException();
-            }
-        }
-
-        private struct ProductionBodyElement
-        {
-            public object TagType;
-            public object RepetitionCount;
-            public string MethodName;
-            public string ParameterName;
-
-            public ProductionBodyElement ReplaceTags(object tagType, object repetitionCount)
-                => new() { TagType = tagType, RepetitionCount = repetitionCount, MethodName = MethodName, ParameterName = ParameterName };
-
-            public void SetTagType(Attribute tagType)
-            {
-                if (TagType is not null)
-                    throw GetBuildingException(MethodName, ParameterName, "Only one tag requiring attribute is allowed");
-                TagType = tagType;
-            }
-
-            public void SetRepetitionCount(Attribute repetitionCount)
-            {
-                if (RepetitionCount is not null)
-                    throw GetBuildingException(MethodName, ParameterName, "At most one repetition count attribute is allowed");
-                RepetitionCount = repetitionCount;
-            }
-
-            public static string ShowKeyword(string keyword)
-                => $"[keyword]\"{keyword}\"";
-
-            // for information only
-            [Obsolete]
-            public static string ShowTag(string tag)
-                => tag;
-
-            public static string ShowHelperTag(HelperTag ht)
-                => "[helper tag]" + ht.Name;
-
-            public string FullTagName
-            {
-                get
-                {
-                    string result;
-                    if (TagType is KeywordsAttribute keywordsAttr && keywordsAttr.Keywords.Count == 1)
-                    {
-                        result = ShowKeyword(keywordsAttr.Keywords[0]);
-                    }
-                    else if (TagType is RequireTagsAttribute requireTagsAttr && requireTagsAttr.Tags.Count == 1)
-                    {
-                        result = requireTagsAttr.Tags[0];
-                    }
-                    else if(TagType is HelperTag ht)
-                    {
-                        result = ShowHelperTag(ht);
-                    }
-                    else
-                    {
-                        Debug.Fail("Unexpected tag type attribute");
-                        result = "";
-                    }
-
-                    //Debug.Assert(RepetitionCount is SingleAttribute);
-
-                    return result;
-                }
-            }
-        }
-
-        private struct Production
-        {
-            public object Tag; // string or HelperTag
-            public bool HasErrorHandler;
-            public bool Greedy;
-            public int Divisor;
-            public List<ProductionBodyElement> Body;
-            public MethodInfo Handler;
-
-            public static List<Production> SplitIntoSimpleProductions(Production self)
-            {
-                List<Production> result = new();
-
-                Production MakeCopy(object subTag)
-                    => new()
-                    {
-                        Tag = subTag,
-                        HasErrorHandler = self.HasErrorHandler,
-                        Body = new(),
-                        Handler = self.Handler,
-                        Greedy = false,
-                        Divisor = self.Divisor
-                    };
-
-                ProductionBodyElement SplitBodyElement(ProductionBodyElement e)
-                {
-                    if (e.TagType is KeywordsAttribute keywordsAttr)
-                    {
-                        if (keywordsAttr.Keywords.Count == 1)
-                            return e;
-
-                        HelperTag subTag = new(keywordsAttr);
-                        foreach (var kw in keywordsAttr.Keywords)
-                        {
-                            Production sub = MakeCopy(subTag);
-                            result.Add(sub);
-                            //sub.Body.Add(new ProductionBodyElement() { TagType = new KeywordsAttribute(kw), RepetitionCount = defaultSingleAttribute });
-                            sub.Body.Add(e.ReplaceTags(new KeywordsAttribute(kw), defaultSingleAttribute));
-                        }
-                        //return new() { TagType = subTag, RepetitionCount = defaultSingleAttribute };
-                        return e.ReplaceTags(subTag, defaultSingleAttribute);
-                    }
-                    else if (e.TagType is RequireTagsAttribute requireTagsAttr)
-                    {
-                        if (requireTagsAttr.Tags.Count == 1)
-                            return e;
-
-                        HelperTag subTag = new(requireTagsAttr);
-                        foreach (var tag in requireTagsAttr.Tags)
-                        {
-                            Production sub = MakeCopy(subTag);
-                            result.Add(sub);
-                            //sub.Body.Add(new ProductionBodyElement() { TagType = new RequireTagsAttribute(tag), RepetitionCount = defaultSingleAttribute });
-                            sub.Body.Add(e.ReplaceTags(new RequireTagsAttribute(tag), defaultSingleAttribute));
-                        }
-                        //return new() { TagType = subTag, RepetitionCount = defaultSingleAttribute };
-                        return e.ReplaceTags(subTag, defaultSingleAttribute);
-                    }
-                    else if (e.TagType is AnyTokenAttribute || e.TagType is AnyTagAttribute)
-                    {
-                        return e;
-                    }
-                    else
-                    {
-                        Debug.Fail("Unexpected tag type attribute");
-                        return e;
-                    }
-                }
-
-                Production newThis = MakeCopy(self.Tag);
-                result.Add(newThis);
-
-                for(int i = 0; i < self.Body.Count; )
-                {
-                    if(self.Body[i].RepetitionCount is SingleAttribute)
-                    {
-                        newThis.Body.Add(SplitBodyElement(self.Body[i++]));
-                    }
-                    else if(self.Body[i].RepetitionCount is OptionalAttribute optionalAttribute)
-                    {
-                        HelperTag subTag = new(optionalAttribute);
-                        var subStart = new ProductionBodyElement() { TagType = subTag, RepetitionCount = defaultSingleAttribute, MethodName = self.Body[i].MethodName };
-                        List<string> subParamNames = new();
-
-                        // empty production
-                        Production emptySub = MakeCopy(subTag);
-                        Production sub = MakeCopy(subTag);
-                        sub.Greedy = optionalAttribute.Greedy;
-                        sub.Divisor = 1;
-                        sub.Body.Add(SplitBodyElement(self.Body[i]));
-                        subParamNames.Add(self.Body[i].ParameterName);
-                        int divisor = 1;
-                        for (i++; i < self.Body.Count && self.Body[i].RepetitionCount is TogetherWithAttribute; i++)
-                        {
-                            sub.Body.Add(SplitBodyElement(self.Body[i]));
-                            subParamNames.Add(self.Body[i].ParameterName);
-                            divisor++;
-                        }
-
-                        subStart.ParameterName = string.Join(",", subParamNames);
-                        newThis.Body.Add(subStart);
-
-                        emptySub.Divisor = divisor;
-                        result.Add(emptySub);
-                        sub.Divisor = divisor;
-                        result.Add(sub);
-                    }
-                    else if(self.Body[i].RepetitionCount is ManyAttribute manyAttribute)
-                    {
-                        HelperTag subTag = new(manyAttribute);
-                        var subStart = new ProductionBodyElement() { TagType = subTag, RepetitionCount = defaultSingleAttribute, MethodName = self.Body[i].MethodName };
-                        List<string> subParamNames = new();
-
-                        // empty or non-rec production
-                        Production sub1 = MakeCopy(subTag);
-                        Production sub2 = MakeCopy(subTag);
-                        var e = SplitBodyElement(self.Body[i]);
-                        sub2.Body.Add(e);
-                        if (!manyAttribute.CanBeEmpty) sub1.Body.Add(e);
-                        int divisor = 1;
-                        for (i++; i < self.Body.Count && self.Body[i].RepetitionCount is TogetherWithAttribute; i++)
-                        {
-                            subParamNames.Add(self.Body[i].ParameterName);
-                            e = SplitBodyElement(self.Body[i]);
-                            sub2.Body.Add(e);
-                            if (!manyAttribute.CanBeEmpty) sub1.Body.Add(e);
-                            divisor++;
-                        }
-
-                        subStart.ParameterName = string.Join(",", subParamNames);
-                        sub2.Body.Add(subStart);
-                        newThis.Body.Add(subStart);
-
-                        sub1.Divisor = divisor;
-                        result.Add(sub1);
-                        sub2.Divisor = divisor;
-                        result.Add(sub2);
-                    }
-                    else
-                    {
-                        Debug.Fail("Unexpected repetition count attribute");
-                        return null;
-                    }
-                }
-                return result;
-            }
-        }
-
+        /// <summary>
+        /// Set of all added tokens' tags INCLUDING fictives
+        /// </summary>
         private readonly SortedSet<string> tokenTags = new();
+        /// <summary>
+        /// Array of all added pairs (tag, machine)
+        /// </summary>
         private readonly List<(string, IMachine)> tokens = new();
+        /// <summary>
+        /// Set of all added keywords
+        /// </summary>
         private readonly SortedSet<string> keywords = new();
-        private readonly List<string> fictiveTokens = new(); // part of tokenTags
-
+        /// <summary>
+        /// Array of all added fictive tokens
+        /// </summary>
+        private readonly List<string> fictiveTokens = new();
+        /// <summary>
+        /// Set of all added non-tokens' tags EXCLUDING fictives
+        /// </summary>
         private readonly SortedSet<string> nonTokenTags = new();
+        /// <summary>
+        /// Array of all generated productions
+        /// </summary>
         private readonly List<Production> productions = new();
-        private readonly SortedSet<string> fictiveNonTokens = new(); // separated with nonTokenTags
+        /// <summary>
+        /// Array of all added fictive non-tokens
+        /// </summary>
+        private readonly SortedSet<string> fictiveNonTokens = new();
+        /// <summary>
+        /// Set of all expression tags with the corresponding operations
+        /// </summary>
+        private readonly SortedDictionary<string, ExpressionTagOperationsSet> operations = new();
+        /// <summary>
+        /// parameters for 2d syntax parsing
+        /// </summary>
+        private (string lineEnd, string blockBegin, string blockEnd)? params2d = null;
 
+        public ParsingEngineBuilder Enable2DSyntax(string lineEndTag, string blockBeginTag, string blockEndTag)
+        {
+            if (params2d.HasValue)
+                throw new ParsingEngineBuildingException("The method cannot be called twice");
+            if (lineEndTag is null || blockBeginTag is null || blockEndTag is null)
+                throw new ParsingEngineBuildingException(errorUnexpectedNullTag);
+            params2d = (lineEndTag, blockBeginTag, blockEndTag);
+            return AddFictiveToken(lineEndTag).AddFictiveToken(blockBeginTag).AddFictiveToken(blockEndTag);
+        }
+
+        /// <summary>
+        /// Performing some actions to register an operation
+        /// </summary>
+        /// <param name="tag">Expression tag</param>
+        /// <param name="handler">Production handler method</param>
+        /// <param name="sign">Sign of the operation</param>
+        /// <param name="priority">Priority of the operation</param>
+        /// <param name="binary">If true, the op is binary, unary otherwise</param>
+        /// <param name="right">If true, the op is right-associative, left- otherwise</param>
+        /// <exception cref="ParsingEngineBuildingException"></exception>
+        private void AddOperation(string tag, MethodInfo handler, string sign, int priority, bool binary, bool right)
+        {
+            if (!operations.ContainsKey(tag))
+                operations.Add(tag, new(tag));
+            operations[tag].AddOperation(handler, sign, priority, binary, right);
+            AddKeyword(sign);
+        }
+
+        /// <summary>
+        /// Checks if tag is used and adds it into the set otherwise
+        /// </summary>
+        /// <param name="tag">The tag to be checked</param>
+        /// <exception cref="ParsingEngineBuildingException"></exception>
         private void AddTokenTag(string tag)
         {
             if (tag is null)
-                throw nullTagException;
+                throw new ParsingEngineBuildingException(errorUnexpectedNullTag);
             if (IsSpecial(tag))
-                throw specialTagException;
+                throw new ParsingEngineBuildingException(errorUnexpectedSpecialTag);
             if (tokenTags.Contains(tag))
-                throw usedTokenTagException;
+                throw new ParsingEngineBuildingException(errorUsedTokenTag);
             if (nonTokenTags.Contains(tag))
-                throw usedNonTokenTagException;
+                throw new ParsingEngineBuildingException(errorUsedNonTokenTag);
             tokenTags.Add(tag);
         }
 
+        /// <summary>
+        /// Adds token directly as a pair (tag, machine)
+        /// </summary>
+        /// <param name="tag">Token's tag</param>
+        /// <param name="machine">Token's machine</param>
+        /// <returns></returns>
         internal ParsingEngineBuilder AddTokenViaMachine(string tag, IMachine machine)
         {
             if(tag != TAG_SKIP)
@@ -375,15 +191,214 @@ namespace CompileLib.Parsing
         public ParsingEngineBuilder AddFictiveNonToken(string tag)
         {
             if (tag is null)
-                throw nullTagException;
+                throw new ParsingEngineBuildingException(errorUnexpectedNullTag);
             if (IsSpecial(tag))
-                throw specialTagException;
+                throw new ParsingEngineBuildingException(errorUnexpectedSpecialTag);
             if (tokenTags.Contains(tag))
-                throw usedTokenTagException;
+                throw new ParsingEngineBuildingException(errorUsedTokenTag);
             if (nonTokenTags.Contains(tag))
-                throw usedNonTokenTagException;
+                throw new ParsingEngineBuildingException(errorUsedNonTokenTag);
             fictiveNonTokens.Add(tag);
             return this;
+        }
+
+        private void AddSetTagProduction(MethodInfo method, SetTagAttribute tagAttr)
+        {
+            // now it's correct or not correct SetTag-production method
+            if (tagAttr.Name is null)
+                throw new ParsingEngineBuildingException(method, errorUnexpectedNullTag);
+            if (IsSpecial(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUnexpectedSpecialTag);
+            if (tokenTags.Contains(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUsedTokenTag);
+            if (fictiveNonTokens.Contains(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUsedFictiveNonTokenTag);
+            var p = new Production
+            {
+                Tag = tagAttr.Name.ToTag<HelperTag>(),
+                Handler = method,
+                Body = new()
+            };
+            var parameters = method.GetParameters();
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var e = new ProductionBodyElement();
+                var param = parameters[i];
+                e.Method = method;
+                e.Parameter = param;
+
+                if (param.ParameterType.IsValueType)
+                    throw new ParsingEngineBuildingException(method, param, errorValueType);
+
+                // handler attrs
+                var errorHandlerAttr = param.GetCustomAttribute<ErrorHandlerAttribute>();
+                if (errorHandlerAttr is not null)
+                {
+                    if (i != parameters.Length - 1)
+                        throw new ParsingEngineBuildingException(method, param, errorEHDLastRequired);
+                    if (param.ParameterType != typeof(ErrorHandlingDecider))
+                        throw new ParsingEngineBuildingException(method, param, errorEHDInvalidType);
+                    p.HasErrorHandler = true;
+                    break;
+                }
+
+                // requiring attrs
+                var requireTagsAttr = param.GetCustomAttribute<RequireTagsAttribute>();
+                if (requireTagsAttr is not null)
+                {
+                    if (requireTagsAttr.Tags.Count == 0)
+                        throw new ParsingEngineBuildingException(method, param, "At least one tag must be required");
+                    foreach (var tag in requireTagsAttr.Tags)
+                    {
+                        if (tag is null)
+                            throw new ParsingEngineBuildingException(method, param, "Null-tag cannot be required");
+                        else if (IsSpecial(tag))
+                            throw new ParsingEngineBuildingException(method, param, "Special tag cannot be required");
+                    }
+                    e.SetTagType(requireTagsAttr);
+                }
+                var keywordAttr = param.GetCustomAttribute<KeywordsAttribute>();
+                if (keywordAttr is not null)
+                {
+                    if (keywordAttr.Keywords is null)
+                        throw new ParsingEngineBuildingException(method, param, "Null-token cannot be required");
+                    e.SetTagType(keywordAttr);
+                }
+                // exactly one such attr must exist
+                if (e.TagType is null)
+                    throw new ParsingEngineBuildingException(method, param, "Exactly one tag requiring attribute must mark the parameter");
+
+                // count attrs
+                var singleAttr = param.GetCustomAttribute<SingleAttribute>();
+                if (singleAttr is not null)
+                {
+                    e.SetRepetitionCount(singleAttr);
+                }
+                var optionalAttr = param.GetCustomAttribute<OptionalAttribute>();
+                if (optionalAttr is not null)
+                {
+                    e.SetRepetitionCount(optionalAttr);
+                }
+                var manyAttr = param.GetCustomAttribute<ManyAttribute>();
+                if (manyAttr is not null)
+                {
+                    e.SetRepetitionCount(manyAttr);
+                }
+                var togetherWithAttr = param.GetCustomAttribute<TogetherWithAttribute>();
+                if (togetherWithAttr is not null)
+                {
+                    if (i == 0)
+                        throw new ParsingEngineBuildingException(method, param, "The first parameter cannot be marked with TogetherWith attribute");
+                    if (p.Body[i - 1].RepetitionCount is SingleAttribute)
+                        e.SetRepetitionCount(SingleAttribute.Instance);
+                    else
+                        e.SetRepetitionCount(togetherWithAttr);
+                }
+                // set single by default
+                e.RepetitionCount ??= SingleAttribute.Instance;
+                p.Body.Add(e);
+            }
+
+            //successful, we must add the production, some tags and keywords
+            productions.Add(p);
+            nonTokenTags.Add(tagAttr.Name);
+            foreach (var e in p.Body)
+                if (e.TagType is KeywordsAttribute keywordAttr)
+                    keywords.UnionWith(keywordAttr.Keywords);
+        }
+
+        private void AddBinaryOperations(MethodInfo method, string tag, BinaryOperationAttribute[] operations)
+        {
+            var parameters = method.GetParameters();
+            int n = parameters.Length;
+            int argsNumber = ExpressionTagOperationsSet.BinaryMethodParamsCount;
+            for(int i = 0; i < n; i++)
+            {
+                var param = parameters[i];
+                if (param.ParameterType.IsValueType)
+                    throw new ParsingEngineBuildingException(method, param, errorValueType);
+
+                // handler attrs
+                var errorHandlerAttr = param.GetCustomAttribute<ErrorHandlerAttribute>();
+                if (errorHandlerAttr is not null)
+                {
+                    if (i != n - 1)
+                        throw new ParsingEngineBuildingException(method, param, errorEHDLastRequired);
+                    if (param.ParameterType != typeof(ErrorHandlingDecider))
+                        throw new ParsingEngineBuildingException(method, param, errorEHDInvalidType);
+                    argsNumber++;
+                    break;
+                }
+            }
+
+            if (n != argsNumber)
+                throw new ParsingEngineBuildingException(method, $"Expected {argsNumber} parameters but {n} found");
+
+            foreach (var attr in operations)
+                AddOperation(tag, method, attr.Sign, attr.Priority, true, attr.IsRightAssociative);
+        }
+
+        private void AddUnaryOperations(MethodInfo method, string tag, UnaryOperationAttribute[] operations)
+        {
+            var parameters = method.GetParameters();
+            int n = parameters.Length;
+            int argsNumber = ExpressionTagOperationsSet.UnaryMethodParamsCount;
+            for (int i = 0; i < n; i++)
+            {
+                var param = parameters[i];
+                if (param.ParameterType.IsValueType)
+                    throw new ParsingEngineBuildingException(method, param, errorValueType);
+
+                // handler attrs
+                var errorHandlerAttr = param.GetCustomAttribute<ErrorHandlerAttribute>();
+                if (errorHandlerAttr is not null)
+                {
+                    if (i != n - 1)
+                        throw new ParsingEngineBuildingException(method, param, errorEHDLastRequired);
+                    if (param.ParameterType != typeof(ErrorHandlingDecider))
+                        throw new ParsingEngineBuildingException(method, param, errorEHDInvalidType);
+                    argsNumber++;
+                    break;
+                }
+            }
+
+            if (n != argsNumber)
+                throw new ParsingEngineBuildingException(method, $"Expected {argsNumber} parameters but {n} found");
+
+            foreach (var attr in operations)
+                AddOperation(tag, method, attr.Sign, attr.Priority, false, attr.IsSuffix);
+        }
+
+        private void AddSetExpressionTagProduction(MethodInfo method, SetExpressionTagAttribute tagAttr)
+        {
+            // now it's correct or not correct SetExpressionTag-production method
+            if (tagAttr.Name is null)
+                throw new ParsingEngineBuildingException(method, errorUnexpectedNullTag);
+            if (IsSpecial(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUnexpectedSpecialTag);
+            if (tokenTags.Contains(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUsedTokenTag);
+            if (fictiveNonTokens.Contains(tagAttr.Name))
+                throw new ParsingEngineBuildingException(method, errorUsedFictiveNonTokenTag);
+
+            BinaryOperationAttribute[] binaries = method.GetCustomAttributes<BinaryOperationAttribute>().ToArray();
+            UnaryOperationAttribute[] unaries = method.GetCustomAttributes<UnaryOperationAttribute>().ToArray();
+
+            if(binaries.Length == 0)
+            {
+                if (unaries.Length == 0)
+                    throw new ParsingEngineBuildingException(method, "The method must be marked with non-zero number of either binary operations or unary operations attributes");
+                else
+                    AddUnaryOperations(method, tagAttr.Name, unaries);
+            }
+            else
+            {
+                if (unaries.Length == 0)
+                    AddBinaryOperations(method, tagAttr.Name, binaries);
+                else
+                    throw new ParsingEngineBuildingException(method, "The method cannot be marked with binary operations and unary operations attributes at the same time");
+            }
+            nonTokenTags.Add(tagAttr.Name);
         }
 
         /// <summary>
@@ -395,131 +410,25 @@ namespace CompileLib.Parsing
         {
             // method is considered as production method <=>:
             // 1) it is public static
-            // 2) returns no void
-            // 3) is marked with SetTag attribute
+            // 2) returns something but void
+            // 3) is marked with SetTag OR SetExpressionTag attribute
             // This method (AddProductions) checks all production methods of t,
             // then either throws an Exception if any one is incorrect,
             // or adds all the methods to productions list
 
             foreach(var method in t.GetMethods().Where(m => m.IsPublic && m.IsStatic && m.ReturnType != typeof(void)))
             {
-                var tagAttr = method.GetCustomAttribute<SetTagAttribute>();
-                if(tagAttr is not null)
+                var setTagAttr = method.GetCustomAttribute<SetTagAttribute>();
+                var setExprTagAttr = method.GetCustomAttribute<SetExpressionTagAttribute>();
+                if (setTagAttr is not null)
                 {
-                    // now it's correct or not correct production method
-                    if (tagAttr.Name is null)
-                        throw GetBuildingException(method, nullTagException.Message);
-                    if (IsSpecial(tagAttr.Name))
-                        throw GetBuildingException(method, specialTagException.Message);
-                    if(tokenTags.Contains(tagAttr.Name))
-                        throw GetBuildingException(method, usedTokenTagException.Message);
-                    if (fictiveNonTokens.Contains(tagAttr.Name))
-                        throw GetBuildingException(method, "The token is already defined as a fictive non-token");
-                    var p = new Production
-                    {
-                        Tag = tagAttr.Name,
-                        Handler = method,
-                        Body = new()
-                    };
-                    var parameters = method.GetParameters();
-                    for(int i = 0; i < parameters.Length; i++)
-                    {
-                        var e = new ProductionBodyElement();
-                        var param = parameters[i];
-                        e.MethodName = method.Name;
-                        e.ParameterName = param.Name;
-
-                        if (param.ParameterType.IsValueType)
-                            throw GetBuildingException(method.Name, param.Name, "No Value Type is allowed to be production method parameter");
-
-                        // handler attrs
-                        var errorHandlerAttr = param.GetCustomAttribute<ErrorHandlerAttribute>();
-                        if (errorHandlerAttr is not null)
-                        {
-                            if (i < parameters.Length - 1)
-                                throw GetBuildingException(method.Name, param.Name, "Error Handler attribute must mark the last parameter of the method");
-                            if (param.ParameterType != typeof(ErrorHandlingDecider))
-                                throw GetBuildingException(method.Name, param.Name, "Error Handler attribute must mark the last parameter with the type " + typeof(ErrorHandlingDecider).FullName);
-                            p.HasErrorHandler = true;
-                            break;
-                        }
-
-                        // requiring attrs
-                        var requireTagsAttr = param.GetCustomAttribute<RequireTagsAttribute>();
-                        if (requireTagsAttr is not null)
-                        {
-                            if (requireTagsAttr.Tags.Count == 0)
-                                throw GetBuildingException(method.Name, param.Name, "At least one tag must be required");
-                            foreach(var tag in requireTagsAttr.Tags)
-                            {
-                                if (tag is null)
-                                    throw GetBuildingException(method.Name, param.Name, "Null-tag cannot be required");
-                                else if (IsSpecial(tag))
-                                    throw GetBuildingException(method.Name, param.Name, "Special tag cannot be required");
-                            }
-                            e.SetTagType(requireTagsAttr);
-                        }
-                        var keywordAttr = param.GetCustomAttribute<KeywordsAttribute>();
-                        if (keywordAttr is not null)
-                        {
-                            if(keywordAttr.Keywords is null)
-                                throw GetBuildingException(method.Name, param.Name, "Null-token cannot be required");
-                            e.SetTagType(keywordAttr);
-                        }
-                        var anyTagAttr = param.GetCustomAttribute<AnyTagAttribute>();
-                        if (anyTagAttr is not null)
-                        {
-                            e.SetTagType(anyTagAttr);
-                        }
-                        var anyTokenAttr = param.GetCustomAttribute<AnyTokenAttribute>();
-                        if(anyTokenAttr is not null)
-                        {
-                            e.SetTagType(anyTokenAttr);
-                        }
-                        // exactly one such attr must exist
-                        if (e.TagType is null)
-                            throw GetBuildingException(method.Name, param.Name, "Exactly one tag requiring attribute must mark the parameter");
-
-                        // count attrs
-                        var singleAttr = param.GetCustomAttribute<SingleAttribute>();
-                        if (singleAttr is not null)
-                        {
-                            e.SetRepetitionCount(singleAttr);
-                        }
-                        var optionalAttr = param.GetCustomAttribute<OptionalAttribute>();
-                        if (optionalAttr is not null)
-                        {
-                            e.SetRepetitionCount(optionalAttr);
-                        }
-                        var manyAttr = param.GetCustomAttribute<ManyAttribute>();
-                        if (manyAttr is not null)
-                        {
-                            e.SetRepetitionCount(manyAttr);
-                        }
-                        var togetherWithAttr = param.GetCustomAttribute<TogetherWithAttribute>();
-                        if (togetherWithAttr is not null)
-                        {
-                            if (i == 0)
-                                throw GetBuildingException(method.Name, param.Name, "The first parameter cannot be marked with Together With attribute");
-                            if (p.Body[i - 1].RepetitionCount is SingleAttribute)
-                                e.SetRepetitionCount(defaultSingleAttribute);
-                            else
-                                e.SetRepetitionCount(togetherWithAttr);
-                        }
-                        // set single by default
-                        if (e.RepetitionCount is null)
-                            e.RepetitionCount = defaultSingleAttribute;
-
-                        p.Body.Add(e);
-                    }
-
-                    //successful, we must add the production, some tags and keywords
-                    productions.Add(p);
-                    nonTokenTags.Add(tagAttr.Name);
-                    foreach(var e in p.Body)
-                        if(e.TagType is KeywordsAttribute keywordAttr)
-                            keywords.UnionWith(keywordAttr.Keywords);
+                    if (setExprTagAttr is not null)
+                        throw new ParsingEngineBuildingException(method, "Production method cannot be marked with SetTag and SetExpressionTag attributes at the same time");
+                    AddSetTagProduction(method, setTagAttr);
                 }
+                else if (setExprTagAttr is not null)
+                    AddSetExpressionTagProduction(method, setExprTagAttr);
+                // otherwise the method is not a production method
             }
 
             return this;
@@ -535,253 +444,13 @@ namespace CompileLib.Parsing
             return AddProductions(typeof(T));
         }
 
-        private static readonly ParsingEngineBuildingException startIsInvalidException = new("start must be non-fictive non-token tag");
-
-        private interface IGroup
-        {
-            IEnumerable<object?> Expand();
-        }
-
-        private class OptionalGroup : IGroup
-        {
-            private readonly object?[] children;
-            private readonly int divisor;
-
-            public OptionalGroup(object?[] children, int divisor)
-            {
-                this.children = children;
-                this.divisor = divisor;
-            }
-
-            public IEnumerable<object?> Expand()
-            {
-                if (children.Length == 0)
-                    return new object?[divisor];
-                else
-                    return children;
-            }
-        }
-
-        private class UnknownArray
-        {
-            private readonly object?[] children;
-
-            public UnknownArray(int length)
-            {
-                children = new object?[length];
-            }
-
-            public object? this[int index]
-            {
-                get => children[index];
-                set => children[index] = value;
-            }
-
-            private static bool IsAssignable(Type src, Type dest)
-            {
-                if (src == typeof(Common.Token))
-                    return typeof(Parsing.Token).IsAssignableTo(dest) || typeof(string).IsAssignableTo(dest);
-
-                return src.IsAssignableTo(dest);
-            }
-
-            private static object? Convert(object? o, Type dest, Func<int, string> typeToStr)
-            {
-                if(o is Common.Token tk)
-                {
-                    if (typeof(Parsing.Token).IsAssignableTo(dest))
-                        return new Parsing.Token(typeToStr(tk.Type), tk.Self, tk.Line, tk.Column);
-                    if (typeof(string).IsAssignableTo(dest))
-                        return tk.Self;
-                    Debug.Fail("Check before was wrong");
-                }
-                return o;
-            }
-
-            public bool Check(Type t)
-            {
-                return children.All(x => x is null || IsAssignable(x.GetType(), t));
-            }
-
-            public object? Cast(Type t, Func<int, string> typeToStr)
-            {
-                var result = Array.CreateInstance(t, children.Length);
-                for(int i = 0; i < children.Length; i++)
-                    result.SetValue(Convert(children[i], t, typeToStr), i);
-                return result;
-            }
-        }
-
-        private class ManyGroup : IGroup
-        {
-            private readonly object?[] children;
-            private readonly int divisor;
-
-            public ManyGroup(object?[] children, int divisor)
-            {
-                this.children = children;
-                this.divisor = divisor;
-            }
-
-            private void GetLeaves(List<object?> result)
-            {
-                foreach (var e in children)
-                    if (e is ManyGroup g)
-                        g.GetLeaves(result);
-                    else
-                        result.Add(e);
-            }
-
-            public IEnumerable<object?> Expand()
-            {
-                List<object?> leaves = new();
-                GetLeaves(leaves);
-                
-                Debug.Assert(leaves.Count % divisor == 0);
-                int itemLength = leaves.Count / divisor;
-
-                var result = new object?[divisor];
-                for(int i = 0; i < divisor; i++)
-                    result[i] = new UnknownArray(itemLength);
-                for(int i = 0; i < leaves.Count; i++)
-                    (result[i % divisor] as UnknownArray)[i / divisor] = leaves[i];
-                return result;
-            }
-        }
-
-        private class ProductionHandler : IProductionHandler, IErrorHandler
-        {
-            private readonly MethodInfo method;
-            private readonly bool hasErrorHandler;
-            private readonly Func<int, string> typeToStr;
-            private readonly Func<Token, int> strToType;
-
-            public ProductionHandler(MethodInfo method, bool hasErrorHandler, Func<int, string> typeToStr, Func<Token, int> strToType)
-            {
-                this.method = method;
-                this.hasErrorHandler = hasErrorHandler;
-                this.typeToStr = typeToStr;
-                this.strToType = strToType;
-            }
-
-            private void AddRange(ParameterInfo[] parameters, ref int ptr, List<object?> args, IEnumerable<object?> objs)
-            {
-                Debug.Assert(method.DeclaringType is not null);
-                foreach (var c in objs)
-                {
-                    if (c is null)
-                        args.Add(null);
-                    else if (c is Common.Token t)
-                    {
-                        if (typeof(Token).IsAssignableTo(parameters[ptr].ParameterType))
-                            args.Add(new Token(typeToStr(t.Type), t.Self, t.Line, t.Column));
-                        else if (typeof(string).IsAssignableTo(parameters[ptr].ParameterType))
-                            args.Add(t.Self);
-                        else
-                            throw GetParsingException(method, parameters[ptr], "Cannot represent token via the parameter type");
-                    }
-                    else if (c is IGroup g)
-                    {
-                        AddRange(parameters, ref ptr, args, g.Expand());
-                        continue;
-                    }
-                    else if (c is UnknownArray a)
-                    {
-                        var ptype = parameters[ptr].ParameterType;
-                        if (!ptype.IsArray)
-                            throw GetParsingException(method, parameters[ptr], "Expected array type");
-                        ptype = ptype.GetElementType();
-                        Debug.Assert(ptype is not null);
-                        if (ptype.IsValueType)
-                            throw GetParsingException(method, parameters[ptr], "Expected no value type of array elements");
-                        if (!a.Check(ptype))
-                            throw GetParsingException(method, parameters[ptr], "Cannot represent one or more elements via the array element type");
-                        args.Add(a.Cast(ptype, typeToStr));
-                    }
-                    else
-                    {
-                        if (c.GetType().IsAssignableTo(parameters[ptr].ParameterType))
-                            args.Add(c);
-                        else
-                            throw GetParsingException(method, parameters[ptr], "Cannot represent non-token via the parameter type");
-                    }
-                    ptr++;
-                }
-            }
-
-            public object? Handle(object?[] children)
-            {
-                var parameters = method.GetParameters();
-                List<object?> args = new();
-                int ptr = 0;
-                AddRange(parameters, ref ptr, args, children);
-                if (hasErrorHandler)
-                    args.Add(null);
-                return method.Invoke(null, args.ToArray());
-            }
-
-            public void Handle(object?[] prefix, ParserTools.ErrorHandlingDecider decider)
-            {
-                var parameters = method.GetParameters();
-                List<object?> args = new();
-                int ptr = 0;
-                AddRange(parameters, ref ptr, args, prefix);
-                for (int i = ptr; i < parameters.Length - 1; i++)
-                    args.Add(null);
-
-                var userDecider = new ErrorHandlingDecider(decider, typeToStr(decider.NextToken.Type), strToType);
-                args.Add(userDecider);
-                method.Invoke(null, args.ToArray());
-            }
-        }
-
-        private class OptionalProductionHandler : IProductionHandler
-        {
-            private readonly int divisor;
-
-            public OptionalProductionHandler(int divisor)
-            {
-                this.divisor = divisor;
-            }
-
-            public object? Handle(object?[] children)
-            {
-                return new OptionalGroup(children, divisor);
-            }
-        }
-
-        private class ManyProductionHandler : IProductionHandler
-        {
-            private readonly int divisor;
-
-            public ManyProductionHandler(int divisor)
-            {
-                this.divisor = divisor;
-            }
-
-            public object? Handle(object?[] children)
-            {
-                return new ManyGroup(children, divisor);
-            }
-        }
-
-        private class IDFuncHandler : IProductionHandler
-        {
-            public object? Handle(object?[] children)
-            {
-                return children[0];
-            }
-
-            public static readonly IDFuncHandler Instance = new();
-        }
-
-        private static Func<Token, int> TypeToString(SortedDictionary<string, int> keywordToIndex, SortedDictionary<string, int> tagToIndex, Func<string, int> getTokenType)
+        private static Func<Parsed<string>, int?> TokenToType(SortedDictionary<string, int> keywordToIndex, SortedDictionary<string, int> tagToIndex, Func<string, int?> getTokenType)
         {
             return t => t.Tag switch
                 {
                     TAG_KEYWORD => keywordToIndex.ContainsKey(t.Self) ? keywordToIndex[t.Self] : throw new ParsingException($"The keyword {t.Self} does not exist"),
                     TAG_UNKNOWN => getTokenType(t.Self),
-                    string s => tagToIndex.ContainsKey(s) ? tagToIndex[s] : throw new ParsingException("Illegal token tag ${s}")
+                    string s => tagToIndex.ContainsKey(s) ? tagToIndex[s] : throw new ParsingException($"Illegal token tag ${s}")
                 };
         }
 
@@ -789,37 +458,24 @@ namespace CompileLib.Parsing
         {
             // check start
             if (!nonTokenTags.Contains(start))
-                throw startIsInvalidException;
-            // check that all tokens in productions are defined
+                throw new ParsingEngineBuildingException(errorStartIsInvalid);
+            // check that all tags in productions are defined
             foreach (var p in productions)
                 for (int i = 0; i < p.Body.Count; i++)
                     if (p.Body[i].TagType is RequireTagsAttribute requireTagAttr)
                         foreach (var tag in requireTagAttr.Tags)
                             if (!tokenTags.Contains(tag) && !nonTokenTags.Contains(tag) && !fictiveNonTokens.Contains(tag))
-                                throw GetBuildingException(p.Handler.Name, p.Handler.GetParameters()[i].Name, $"Tag {tag} is not defined");
+                                throw new ParsingEngineBuildingException(p.Handler, p.Handler.GetParameters()[i], $"Tag {tag} is not defined");
 
-            // build lexer
             (int, IMachine)[] tokensForLexer = new (int, IMachine)[keywords.Count + tokens.Count];
-            int ptr = 0;
-            foreach (var kw in keywords)
-                tokensForLexer[ptr] = (ptr++, new TokenMachine(kw));
-            foreach (var (_, machine) in tokens)
-                tokensForLexer[ptr] = (ptr++, machine);
-            var lexer = new Lexer(tokensForLexer);
-
-            // build parser
-
             // first go keywords, then ordinary tokens, then fictive tokens
             SortedDictionary<string, int> keywordToIndex = new(); // [no ~]
             SortedDictionary<string, int> tokenTagToIndex = new(); // [no ~] part of tagToIndex
 
             SortedDictionary<string, int> tagToIndex = new(); // all tags except helpers
-            SortedDictionary<string, int> helperTagToIndex = new(); // helper tags except AnyToken/AnyTag
-            SortedDictionary<string, int> anyTokenToIndex = new(); // AnyToken helper tags
-            SortedDictionary<string, int> anyTagToIndex = new(); // AnyTag helper tags
+            SortedDictionary<long, int> helperTagToIndex = new(); // helper tags
             
             SortedSet<int> whitespaces = new();
-
             List<string> tokenName = new();
             List<string> showedTokensNames = new();
 
@@ -828,23 +484,24 @@ namespace CompileLib.Parsing
             {
                 tokenName.Add(TAG_KEYWORD);
                 showedTokensNames.Add(ProductionBodyElement.ShowKeyword(kw));
-                keywordToIndex.Add(kw, totalTokensCount++);
+                keywordToIndex.Add(kw, totalTokensCount);
+                tokensForLexer[totalTokensCount] = (totalTokensCount++, new TokenMachine(kw));
             }
-            foreach (var (tag, _) in tokens)
+            foreach (var (tag, machine) in tokens)
             {
                 if (tag == TAG_SKIP)
                 {
                     showedTokensNames.Add("[whitespace]");
-                    whitespaces.Add(totalTokensCount++);
+                    whitespaces.Add(totalTokensCount);
                 }
                 else
                 {
                     showedTokensNames.Add(tag);
                     tokenTagToIndex.Add(tag, totalTokensCount);
-                    tagToIndex.Add(tag, ~(totalTokensCount++));
+                    tagToIndex.Add(tag, ~totalTokensCount);
                 }
-
                 tokenName.Add(tag);
+                tokensForLexer[totalTokensCount] = (totalTokensCount++, machine);
             }
             foreach (var tag in fictiveTokens)
             {
@@ -853,7 +510,19 @@ namespace CompileLib.Parsing
                 showedTokensNames.Add(tag);
             }
 
+            Lexer lexer;
+            if(params2d.HasValue)
+            {
+                var (lineEnd, blockBegin, blockEnd) = params2d.Value;
+                lexer = new(tokensForLexer, ~tagToIndex[lineEnd], ~tagToIndex[blockBegin], ~tagToIndex[blockEnd]);
+            }
+            else
+            {
+                lexer = new(tokensForLexer);
+            }
+
             List<string> showedNonTokensNames = new();
+            List<string> nonTokenName = showedNonTokensNames; // for now, it's alias but in the future it can be changed
             int totalNonTokensCount = 0;
             foreach(var tag in nonTokenTags.Concat(fictiveNonTokens))
             {
@@ -861,62 +530,46 @@ namespace CompileLib.Parsing
                 showedNonTokensNames.Add(tag);
             }
 
+            //DEBUG ONLY
+            //string logfilename = "output" + new string(DateTime.Now.ToString().Where(char.IsDigit).ToArray()) + ".txt";
+            //StringBuilder log = new();
+            //for (int i = 0; i < showedTokensNames.Count; i++)
+            //    log.Append($"{~i} = {showedTokensNames[i]}\n");
+            //for (int i = 0; i < showedNonTokensNames.Count; i++)
+            //    log.Append($"{i} = {showedNonTokensNames[i]}\n");
+            //System.IO.File.WriteAllText(logfilename, log.ToString());
+            //Console.WriteLine("Successful writing log to " + logfilename);
+            //END
+
             int minNonHelperTag = totalNonTokensCount;
-            List<HelperTag> allht = new();
+            List<HelperTag> allHelperTags = new();
 
-            List<Production> splittedProductions = productions.SelectMany(Production.SplitIntoSimpleProductions).ToList();
-            foreach (var p in splittedProductions)
+            var splittedProductions = productions.SelectMany(Production.SplitIntoSimpleProductions).ToList();
+            foreach (var ht in splittedProductions.Where(p => p.Tag.SecondType()).Select(p => p.Tag.Second))
             {
-                if (p.Tag is HelperTag ht && !helperTagToIndex.ContainsKey(ht.Name))
+                if (!helperTagToIndex.ContainsKey(ht.ID))
                 {
-                    helperTagToIndex.Add(ht.Name, totalNonTokensCount++);
+                    helperTagToIndex.Add(ht.ID, totalNonTokensCount++);
                     showedNonTokensNames.Add(ProductionBodyElement.ShowHelperTag(ht));
-                    allht.Add(ht);
-                }
-
-                for(int i = 0; i < p.Body.Count; i++)
-                {
-                    if(p.Body[i].TagType is AnyTokenAttribute anyToken)
-                    {
-                        HelperTag subTag = new(anyToken);
-                        anyTokenToIndex.Add(subTag.Name, totalNonTokensCount++);
-                        showedNonTokensNames.Add(ProductionBodyElement.ShowHelperTag(subTag));
-                        allht.Add(subTag);
-                        p.Body[i] = new() { TagType = subTag, RepetitionCount = p.Body[i].RepetitionCount };
-                    }
-                    else if(p.Body[i].TagType is AnyTagAttribute anyTag)
-                    {
-                        HelperTag subTag = new(anyTag);
-                        anyTagToIndex.Add(subTag.Name, totalNonTokensCount++);
-                        showedNonTokensNames.Add(ProductionBodyElement.ShowHelperTag(subTag));
-                        allht.Add(subTag);
-                        p.Body[i] = new() { TagType = subTag, RepetitionCount = p.Body[i].RepetitionCount };
-                    }
+                    allHelperTags.Add(ht);
                 }
             }
+
+            List<(int, string)> carryBans = new();
+            List<(int, string)> foldingBans = new();
+            foreach (var set in operations.Values)
+                set.GetProductions(splittedProductions, foldingBans, carryBans);
 
             var grammarBuilder = new GrammarBuilder(totalTokensCount, totalNonTokensCount, tagToIndex[start]);
-            
-            string TokenTypeToStr(int id)
-                => (id < 0 ? TAG_UNDEFINED : (id == tokenName.Count ? TAG_EOF : tokenName[id]));
-            
-            int GetIndexOfTag(object tag)
-            {
-                if(tag is string s) return tagToIndex[s];
-                if(tag is HelperTag ht)
-                {
-                    if(helperTagToIndex.ContainsKey(ht.Name))
-                        return helperTagToIndex[ht.Name];
-                    if(anyTokenToIndex.ContainsKey(ht.Name))
-                        return anyTokenToIndex[ht.Name];
-                    if(anyTagToIndex.ContainsKey(ht.Name))
-                        return anyTagToIndex[ht.Name];
-                }
-                Debug.Fail("Invalid tag");
-                return -1;
-            }
 
-            List<object> addedProductionInfo = new(); // either index i of splittedProductions or AnyToken/AnyTag helper tag
+            string TokenTypeToString(int? id)
+                => id.HasValue ? (id.Value == totalTokensCount ? TAG_EOF : tokenName[id.Value]) : TAG_UNDEFINED;
+            string NonTokenTypeToString(int? id)
+                => id.HasValue ? nonTokenName[id.Value] : TAG_UNDEFINED;
+
+            int GetIndexOfTag(Alternation<string, HelperTag> tag)
+                => tag.FirstType() ? tagToIndex[tag.First] : helperTagToIndex[tag.Second.ID];
+
             for(int j = 0; j < splittedProductions.Count; j++)
             {
                 var p = splittedProductions[j];
@@ -929,7 +582,7 @@ namespace CompileLib.Parsing
                     int singleID;
                     if (tt is KeywordsAttribute ka)
                     {
-                        singleID = ~keywordToIndex[ka.Keywords[0]]; // because no ~
+                        singleID = ~keywordToIndex[ka.Keywords[0]]; // because wk2index without ~
                     }
                     else if (tt is RequireTagsAttribute rta)
                     {
@@ -937,41 +590,7 @@ namespace CompileLib.Parsing
                     }
                     else if(tt is HelperTag htt)
                     {
-                        if(helperTagToIndex.ContainsKey(htt.Name))
-                        {
-                            singleID = helperTagToIndex[htt.Name];
-                        }
-                        else if(anyTokenToIndex.ContainsKey(htt.Name))
-                        {
-                            singleID = anyTokenToIndex[htt.Name];
-                            foreach (var tag in tokenTags)
-                            {
-                                grammarBuilder.AddProduction(
-                                    singleID,
-                                    new int[] { tagToIndex[tag] },
-                                    IDFuncHandler.Instance,
-                                    null);
-                                addedProductionInfo.Add(htt);
-                            }
-                        }
-                        else if(anyTagToIndex.ContainsKey(htt.Name))
-                        {
-                            singleID = anyTagToIndex[htt.Name];
-                            foreach (var tag in tagToIndex.Keys)
-                            {
-                                grammarBuilder.AddProduction(
-                                    singleID,
-                                    new int[] { GetIndexOfTag(tag) },
-                                    IDFuncHandler.Instance,
-                                    null);
-                                addedProductionInfo.Add(htt);
-                            }
-                        }
-                        else
-                        {
-                            Debug.Fail("Unexpected token type");
-                            singleID = -1;
-                        }
+                        singleID = helperTagToIndex[htt.ID];
                     }
                     else
                     {
@@ -982,20 +601,33 @@ namespace CompileLib.Parsing
                 }
 
                 IProductionHandler productionHandler;
-                IErrorHandler? errorHandler = null; // ???
+                IErrorHandler errorHandler;
 
-                if(p.Tag is HelperTag ht)
+                if(p.Tag.SecondType())
                 {
+                    var ht = p.Tag.Second;
                     if (ht.ParentAttribute is OptionalAttribute)
-                        productionHandler = new OptionalProductionHandler(p.Divisor);
+                    {
+                        var h = new GroupHandler<OptionalGroup>(p.Divisor);
+                        productionHandler = h;
+                        errorHandler = h;
+                    }
                     else if (ht.ParentAttribute is ManyAttribute)
-                        productionHandler = new ManyProductionHandler(p.Divisor);
+                    {
+                        var h = new GroupHandler<ManyGroup>(p.Divisor);
+                        productionHandler = h;
+                        errorHandler = h;
+                    }
                     else
-                        productionHandler = IDFuncHandler.Instance;
+                    {
+                        var h = IDFuncHandler.Instance;
+                        productionHandler = h;
+                        errorHandler = h;
+                    }
                 }
                 else
                 {
-                    var h = new ProductionHandler(p.Handler, p.HasErrorHandler, TokenTypeToStr, TypeToString(keywordToIndex, tokenTagToIndex, lexer.SingleAnalyze));
+                    var h = new UserHandler(p.Handler, p.HasErrorHandler, TokenToType(keywordToIndex, tokenTagToIndex, lexer.SingleAnalyze));
                     productionHandler = h;
                     errorHandler = h;
                 }
@@ -1005,130 +637,93 @@ namespace CompileLib.Parsing
                     body.ToArray(),
                     productionHandler,
                     p.HasErrorHandler ? errorHandler : null);
-                addedProductionInfo.Add(j);
             }
 
-            // searching for greedies
-            for(int i = 0; i < addedProductionInfo.Count; i++)
+            for(int i = 0; i < splittedProductions.Count; i++)
             {
-                if(addedProductionInfo[i] is int index && splittedProductions[index].Greedy)
+                if (splittedProductions[i].Greedy != 0)
                 {
-                    var pStart = splittedProductions[index].Tag;
-                    for (int j = 0; j < addedProductionInfo.Count; j++)
-                        if (i != j && addedProductionInfo[j] is int other && splittedProductions[other].Tag.Equals(pStart))
-                            grammarBuilder.AddBanRule(j, i);
+                    int j = i + splittedProductions[i].Greedy;
+                    grammarBuilder.AddBanFoldingWhenFirstRule(j, i);
                 }
             }
 
+            foreach (var (prod, kw) in foldingBans)
+                grammarBuilder.AddBanFoldingWhenCharacterRule(prod, ~keywordToIndex[kw]);
+            foreach (var (prod, kw) in carryBans)
+                grammarBuilder.AddBanCarryWhenCharacterRule(prod, ~keywordToIndex[kw]);
+
             try
             {
-                return new ParsingEngine(lexer, grammarBuilder.CreateMachine(), tk => !whitespaces.Contains(tk.Type), TokenTypeToStr);
+                return new ParsingEngine(lexer, grammarBuilder.CreateMachine(TokenTypeToString, NonTokenTypeToString), tk => tk.Type.HasValue && !whitespaces.Contains(tk.Type.Value), TokenTypeToString);
             }
             catch (LRConflictException e)
             {
-                SortedDictionary<string, int> helperTagOwner = new(); // ht to production index
-                SortedDictionary<string, int> secondOwner = new(); // may be the second owner
-                SortedDictionary<string, List<int>> helperTagProductions = new(); // ht to productions starting with it
+                SortedDictionary<long, int> helperTagOwner = new(); // ht to production index
+                SortedDictionary<long, int> secondOwner = new(); // may be the second owner
+                SortedDictionary<long, List<int>> helperTagProductions = new(); // ht to productions starting with it
 
-                for(int i = 0; i < addedProductionInfo.Count; i++)
+                for (int i = 0; i < splittedProductions.Count; i++)
                 {
-                    var info = addedProductionInfo[i];
-                    if(info is int index)
+                    var p = splittedProductions[i];
+                    if (p.Tag.SecondType())
                     {
-                        var p = splittedProductions[index];
-                        if(p.Tag is HelperTag ht)
-                        {
-                            if(!helperTagProductions.ContainsKey(ht.Name))
-                                helperTagProductions.Add(ht.Name, new());
-                            helperTagProductions[ht.Name].Add(i);
-                        }
-
-                        foreach (var element in p.Body)
-                            if (element.TagType is HelperTag subht)
-                            {
-                                if (p.Tag is HelperTag parentTag && parentTag.Name == subht.Name) continue;
-                                if (helperTagOwner.ContainsKey(subht.Name))
-                                    secondOwner.Add(subht.Name, i);
-                                else
-                                    helperTagOwner.Add(subht.Name, i);
-                            }
+                        var ht = p.Tag.Second;
+                        if (!helperTagProductions.ContainsKey(ht.ID))
+                            helperTagProductions.Add(ht.ID, new());
+                        helperTagProductions[ht.ID].Add(i);
                     }
+                    foreach (var element in p.Body)
+                        if (element.TagType is HelperTag subht)
+                        {
+                            if (p.Tag.SecondType() && p.Tag.Second.ID == subht.ID) 
+                                continue;
+                            if (helperTagOwner.ContainsKey(subht.ID))
+                                secondOwner.Add(subht.ID, i);
+                            else
+                                helperTagOwner.Add(subht.ID, i);
+
+                        }
                 }
 
                 SortedSet<int> productionsUsed = new();
 
                 void PrintProduction(int production, StringBuilder output)
                 {
-                    var info = addedProductionInfo[production];
-                    if(info is HelperTag ht)
-                    {
-                        if (ht.ParentAttribute is AnyTokenAttribute)
-                            output.Append($"{ht.Name} -> [any token]\n");
-                        else if(ht.ParentAttribute is AnyTagAttribute)
-                            output.Append($"{ht.Name} -> [any tag]\n");
-                    }
-                    else if(info is int splittedProductionIndex)
-                    {
-                        var p = splittedProductions[splittedProductionIndex];
-                        output.Append($"{p.Tag} -> \n{string.Join('\n', p.Body.Select(e => $"\t[{e.MethodName}(...,{e.ParameterName},...)]{e.FullTagName}"))}\n");
-                    }
+                    var p = splittedProductions[production];
+                    output.Append($"{p.Tag} -> \n{string.Join('\n', p.Body.Select(e => $"\t[{e.Method.Name}(...,{e.Parameter.Name},...)]{e.FullTagName}"))}\n");
                 }
 
                 void DependenciesDFS(int production, StringBuilder output, bool spawnWhere)
                 {
-                    if(productionsUsed.Add(production))
+                    if (productionsUsed.Add(production))
                     {
                         PrintProduction(production, output);
-                        
-                        if(addedProductionInfo[production] is int splittedProductionIndex)
-                        {
-                            foreach (var e in splittedProductions[splittedProductionIndex].Body)
-                                if (e.TagType is HelperTag ht)
-                                    foreach (var p in helperTagProductions[ht.Name])
-                                    {
-                                        if (spawnWhere) output.Append("where\n");
-                                        spawnWhere = false;
-                                        DependenciesDFS(p, output, false);
-                                    }
-                        }
+
+                        foreach (var e in splittedProductions[production].Body)
+                            if (e.TagType is HelperTag ht)
+                                foreach (var p in helperTagProductions[ht.ID])
+                                {
+                                    if (spawnWhere) output.Append("where\n");
+                                    spawnWhere = false;
+                                    DependenciesDFS(p, output, false);
+                                }
                     }
                 }
 
                 void GoToRoot(int p1, int p2, StringBuilder output)
                 {
-                    //output.Append("where\n");
                     DependenciesDFS(p1, output, true);
-                    if(p2 >= 0) DependenciesDFS(p2, output, true);
+                    if (p2 >= 0) DependenciesDFS(p2, output, true);
 
-                    object info = addedProductionInfo[p1];
-                    if(info is HelperTag ht)
+                    var start = splittedProductions[p1].Tag;
+                    if (start.SecondType())
                     {
-                        Debug.Assert(
-                            p2 < 0 
-                            || addedProductionInfo[p2] is HelperTag ht2 
-                            && helperTagOwner[ht2.Name] == helperTagOwner[ht.Name]);
-
+                        var hts = start.Second;
+                        p1 = helperTagOwner[hts.ID];
+                        p2 = secondOwner.ContainsKey(hts.ID) ? secondOwner[hts.ID] : -1;
                         output.Append("being a part of\n");
-                        p1 = helperTagOwner[ht.Name];
-                        p2 = secondOwner.ContainsKey(ht.Name) ? secondOwner[ht.Name] : -1;
                         GoToRoot(p1, p2, output);
-                    }
-                    else if(info is int splittedProductionIndex)
-                    {
-                        var start = splittedProductions[splittedProductionIndex].Tag;
-                        if(start is HelperTag hts)
-                        {
-                            Debug.Assert(
-                                p2 < 0
-                                || addedProductionInfo[p2] is int secondIndex
-                                && splittedProductions[secondIndex].Tag is HelperTag ht2
-                                && helperTagOwner[ht2.Name] == helperTagOwner[hts.Name]);
-
-                            p1 = helperTagOwner[hts.Name];
-                            p2 = secondOwner.ContainsKey(hts.Name) ? secondOwner[hts.Name] : -1;
-                            output.Append("being a part of\n");
-                            GoToRoot(p1, p2, output);
-                        }
                     }
                 }
 
@@ -1146,32 +741,13 @@ namespace CompileLib.Parsing
                         return new(null, null, opponent.IsCarry);
 
                     int p = opponent.Production.Value;
-                    var info = addedProductionInfo[p];
-
-                    if(info is HelperTag ht)
-                    {
-                        string type = "";
-                        if (ht.ParentAttribute is AnyTokenAttribute)
-                            type = "[any token]";
-                        else if (ht.ParentAttribute is AnyTagAttribute)
-                            type = "[any tag]";
-                        else
-                            Debug.Fail("Unexpected helper tag");
-                        return new(ht.Name, $"{ht.Name} -> {type}", opponent.IsCarry);
-                    }
-
-                    var prod = splittedProductions[(int)info];
-
+                    var prod = splittedProductions[p];
                     return new(
                         prod.Tag.ToString(),
                         GetFullView(p),
                         opponent.IsCarry);
                 }
 
-                // ???
-                // лучше не использовать
-                // вместо этого передавать в way собственно токенный путь
-                // плюс надо как-то восстанавливать всю иерархию правил
                 IEnumerable<int> ExpandWay(IEnumerable<int> way)
                 {
                     List<int> result = new();
@@ -1183,7 +759,7 @@ namespace CompileLib.Parsing
                                 result.Add(e);
                             else
                             {
-                                foreach(var p in helperTagProductions[allht[e - minNonHelperTag].Name])
+                                foreach(var p in helperTagProductions[allHelperTags[e - minNonHelperTag].ID])
                                 {
                                     var body = grammarBuilder.GetBodyByProductionIndex(p);
                                     if (body.Contains(e)) continue;
@@ -1196,17 +772,6 @@ namespace CompileLib.Parsing
                     rec(way);
                     return result;
                 }
-
-                //Console.WriteLine("Diagnostics: all productions:\n");
-                //
-                //StringBuilder sbb = new();
-                //for(int i = 0; i < addedProductionInfo.Count; i++)
-                //{
-                //    sbb.Clear();
-                //    PrintProduction(i, sbb);
-                //    Console.WriteLine(sbb);
-                //}
-                //Console.WriteLine();
 
                 throw new ParsingConflictException(
                     ExpandWay(e.Way).Select(id => (id < 0 ? showedTokensNames[~id] : showedNonTokensNames[id])).ToArray(),

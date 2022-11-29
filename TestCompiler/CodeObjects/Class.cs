@@ -17,6 +17,7 @@ namespace TestCompiler.CodeObjects
         public ELType TargetType { get; set; }
         public ELStructType? StrucType { get; set; }
         public bool IsSigned { get; private set; }
+        public bool IsFloat { get; private set; }
 
         public Class(
             string name,
@@ -42,7 +43,8 @@ namespace TestCompiler.CodeObjects
             string name,
             ClassMember[] members,
             ELType targetType,
-            bool isSigned
+            bool isSigned,
+            bool isFloat
             )
             : base(name, "class", -1, -1)
         {
@@ -50,6 +52,7 @@ namespace TestCompiler.CodeObjects
             IsPredefined = true;
             Members = members;
             IsSigned = isSigned;
+            IsFloat = isFloat;
             foreach (var member in members)
             {
                 member.AddRelation("parent", this);

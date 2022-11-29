@@ -18,6 +18,9 @@ namespace CompileLib.ParserTools
         }
     }
 
+    /// <summary>
+    /// Exception throwed when the grammar seems to be ambiguous
+    /// </summary>
     internal class LRConflictException : Exception
     {
         public LROpponent First { get; }

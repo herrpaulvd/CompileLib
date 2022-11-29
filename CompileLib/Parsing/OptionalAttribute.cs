@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace CompileLib.Parsing
 {
     /// <summary>
-    /// Optional child
+    /// Attribute to define optional child
     /// </summary>
     [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false)]
     public class OptionalAttribute : Attribute

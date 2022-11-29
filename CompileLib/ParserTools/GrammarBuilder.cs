@@ -4,13 +4,18 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using CompileLib.Parsing;
 
 namespace CompileLib.ParserTools
 {
-    //using ActionOwnerPair = ValueTuple<LRAction, int>;
-
+    /// <summary>
+    /// LR(1) builder
+    /// </summary>
     internal class GrammarBuilder
     {
+        /// <summary>
+        /// Internal GrammarBuilder's representation of productions
+        /// </summary>
         private struct Production
         {
             public int Start;
@@ -27,26 +32,22 @@ namespace CompileLib.ParserTools
             }
         }
 
-        private class MainHandler : IProductionHandler
-        {
-            public object? Handle(object?[] children)
-            {
-                return children[0];
-            }
-            public static readonly MainHandler Instance = new();
-        }
-
+        /// <summary>
+        /// Default error handler stopping the analysis
+        /// </summary>
         private class DefaultErrorHandler : IErrorHandler
         {
-            public void Handle(object?[] prefix, ErrorHandlingDecider decider)
+            public ErrorHandlingDecision Handle(AnyParsed[] prefix, Parsed<string> nextToken)
             {
-                decider.Stop();
+                return ErrorHandlingDecision.Stop;
             }
             public static readonly DefaultErrorHandler Instance = new();
         }
 
         private readonly List<Production> productions = new();
+        private readonly List<SortedSet<int>?> foldingBansByFirst = new();
         private readonly List<SortedSet<int>?> foldingBans = new();
+        private readonly List<SortedSet<int>?> carryBans = new();
         private readonly List<int>[] prodByStart;
         private readonly int tokensCount;
         private readonly int nonTokensCount;
@@ -67,19 +68,51 @@ namespace CompileLib.ParserTools
 
             int prodID = productions.Count;
             productions.Add(new(start, body, productionHandler, errorHandler));
+            foldingBansByFirst.Add(null);
             foldingBans.Add(null);
+            carryBans.Add(null);
             prodByStart[start].Add(prodID);
         }
 
         private bool FoldingBanned(int p, int c)
             => foldingBans[p] is not null && foldingBans[p].Contains(c);
 
-        public void AddBanRule(int victim, int client)
+        private bool CarryBanned(int p, int c)
+            => carryBans[p] is not null && carryBans[p].Contains(c);
+
+        /// <summary>
+        /// For target production, it bans all foldings when the next token is a character from FIRST(firstFuncSource).
+        /// NB! The method must not be called unless all productions are added
+        /// </summary>
+        /// <param name="targetProduction"></param>
+        /// <param name="firstFuncSource"></param>
+        public void AddBanFoldingWhenFirstRule(int targetProduction, int firstFuncSource)
         {
-            victim += reservedProductions;
-            client += reservedProductions;
-            foldingBans[victim] ??= new();
-            foldingBans[victim].UnionWith(First(productions[client].Body));
+            targetProduction += reservedProductions;
+            firstFuncSource += reservedProductions;
+            (foldingBansByFirst[targetProduction] ??= new()).Add(firstFuncSource);
+        }
+
+        /// <summary>
+        /// For target production, it bans any folding when the next token is the given character.
+        /// </summary>
+        /// <param name="targetProduction"></param>
+        /// <param name="character"></param>
+        public void AddBanFoldingWhenCharacterRule(int targetProduction, int character)
+        {
+            targetProduction += reservedProductions;
+            (foldingBans[targetProduction] ??= new()).Add(character);
+        }
+
+        /// <summary>
+        /// For target production, it bans any carry when the next token is the given character.
+        /// </summary>
+        /// <param name="targetProduction"></param>
+        /// <param name="character"></param>
+        public void AddBanCarryWhenCharacterRule(int targetProduction, int character)
+        {
+            targetProduction += reservedProductions;
+            (carryBans[targetProduction] ??= new()).Add(character);
         }
 
         public GrammarBuilder(int tokensCount, int nonTokensCount, int start)
@@ -92,7 +125,7 @@ namespace CompileLib.ParserTools
             for (int i = 0; i < this.nonTokensCount; i++)
                 prodByStart[i] = new();
             mainProduction = productions.Count;
-            AddProduction(fictStart, new int[] {start}, MainHandler.Instance, null);
+            AddProduction(fictStart, new int[] {start}, IDFuncHandler.Instance, null);
         }
 
         private bool[] empty;
@@ -307,6 +340,8 @@ namespace CompileLib.ParserTools
                     foreach(var b in First(body.Skip(pos + 1).Append(a)))
                         foreach(var p in prodByStart[body[pos]])
                         {
+                            if (FoldingBanned(p, b))
+                                continue;
                             var triple = (p, 0, b);
                             if(used.Add(triple))
                                 result.Add(triple);
@@ -383,11 +418,19 @@ namespace CompileLib.ParserTools
         private GotoResult Goto(List<(int, int, int)> list)
         {
             GotoResult result = new(tokensCount, nonTokensCount);
+            SortedSet<int> bannedTransitions = new();
             foreach(var (prod, pos, a) in list)
             {
                 var production = productions[prod];
                 var body = production.Body;
-                if (pos < body.Length)
+                if (pos == body.Length && CarryBanned(prod, a))
+                    bannedTransitions.Add(a);
+            }
+            foreach(var (prod, pos, a) in list)
+            {
+                var production = productions[prod];
+                var body = production.Body;
+                if (pos < body.Length && !bannedTransitions.Contains(body[pos]))
                     result.Add(body[pos], prod, pos + 1, a);
             }
             result.Map(Closure);
@@ -420,7 +463,7 @@ namespace CompileLib.ParserTools
                 int i = 10;
                 if ('0' <= c && c <= '9')
                     i = c - '0';
-                return next[i] ?? (next[i] = new Trie());
+                return next[i] ??= new Trie();
             }
 
             public int AddOrFind(string s, int newIndex)
@@ -436,14 +479,18 @@ namespace CompileLib.ParserTools
             }
         }
 
-        public LRMachine CreateMachine()
+        public LRMachine CreateMachine(Func<int?, string> tokenTypeToStr, Func<int?, string> nonTokenTypeToStr)
         {
             RecalcFirstAndEmpty();
+            for (int i = 0; i < foldingBansByFirst.Count; i++)
+                if (foldingBansByFirst[i] is not null)
+                    (foldingBans[i] ??= new()).UnionWith(foldingBansByFirst[i].SelectMany(firstFuncSource => First(productions[firstFuncSource].Body)));
+
             List<List<(int, int, int)>> lists = new();
             List<(int, int)> parents = new();
             List<LRAction[]> actions = new();
             List<int[]> @goto = new();
-            List<(int, IErrorHandler)> errorHandlers = new();
+            List<List<(int, IErrorHandler, int)>> errorHandlers = new();
             Trie trie = new();
 
             int[] getWay(int list)
@@ -497,16 +544,14 @@ namespace CompileLib.ParserTools
                     currGoto[nt] = index;
                 }
 
-                int errorCount = 0;
-                IErrorHandler? errorHandler = null;
+                List<(int, IErrorHandler, int)> currHandlers = new();
+
                 foreach (var (prod, pos, c) in lists[i])
                 {
                     var start = productions[prod].Start;
                     var body = productions[prod].Body;
                     if (pos == body.Length)
                     {
-                        if (FoldingBanned(prod, c)) continue;
-
                         var handler = productions[prod].ProductionHandler;
                         if (prod == mainProduction && c == fictEOF)
                         {
@@ -543,22 +588,21 @@ namespace CompileLib.ParserTools
                     }
                     else
                     {
-                        // maybe conflict. resolve?
-                        if(errorHandler is null)
+                        var errorHandler = productions[prod].ErrorHandler;
+                        if (errorHandler is not null)
                         {
-                            errorHandler = productions[prod].ErrorHandler;
-                            if (errorHandler is not null)
-                                errorCount = pos;
+                            currHandlers.Add((pos, errorHandler, productions[prod].Start));
                         }
                     }
                 }
 
                 actions.Add(currActions);
                 @goto.Add(currGoto);
-                errorHandlers.Add((errorCount, errorHandler ?? DefaultErrorHandler.Instance));
+                currHandlers.Add((0, DefaultErrorHandler.Instance, -1));
+                errorHandlers.Add(currHandlers);
             }
 
-            return new LRMachine(actions.ToArray(), @goto.ToArray(), errorHandlers.ToArray(), new Common.Token(~fictEOF, "", -1, -1));
+            return new LRMachine(actions.ToArray(), @goto.ToArray(), errorHandlers.ToArray(), new Common.Token(~fictEOF, "", -1, -1), tokenTypeToStr, nonTokenTypeToStr);
         }
     }
 }

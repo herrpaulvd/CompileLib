@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace CompileLib.Parsing
 {
     /// <summary>
-    /// Many children
+    /// Attribute to define many children
     /// </summary>
     [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false)]
     public class ManyAttribute : Attribute

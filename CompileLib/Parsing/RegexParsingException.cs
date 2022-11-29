@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace CompileLib.Parsing
 {
+    /// <summary>
+    /// An exception throwed while parsing regular expressions
+    /// </summary>
     public class RegexParsingException : Exception
     {
         public int Line { get; internal set; }

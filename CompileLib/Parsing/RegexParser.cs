@@ -9,6 +9,9 @@ using CompileLib.LexerTools;
 
 namespace CompileLib.Parsing
 {
+    /// <summary>
+    /// Parser of POSIX-regexps
+    /// </summary>
     internal class RegexParser
     {
         private class Expr
@@ -141,7 +144,7 @@ namespace CompileLib.Parsing
             public static Predicate<char> CharClass(
                 [Keywords("[")] string sqBrOpen,
                 [Optional(true)][Keywords(":")] string colon1,
-                [TogetherWith][RequireTags("char-class-name")] Token[] name,
+                [TogetherWith][RequireTags("char-class-name")] Parsed<string>[] name,
                 [TogetherWith][Keywords(":")] string colon2,
                 [TogetherWith][Keywords("]")] string sqBrClose)
             {
@@ -155,7 +158,7 @@ namespace CompileLib.Parsing
             }
 
             [SetTag("char-class-name")]
-            public static Token[] CharClassName([Many(false)][RequireTags("non-spec", "digit")] Token[] name)
+            public static Parsed<string>[] CharClassName([Many(false)][RequireTags("non-spec", "digit")] Parsed<string>[] name)
             {
                 return name;
             }
@@ -277,7 +280,7 @@ namespace CompileLib.Parsing
             try
             {
                 Expr.charClasses = charClasses;
-                return engine.Parse<SmartFSMBuilder>(regexp).Create();
+                return engine.Parse<SmartFSMBuilder>(regexp).Self.Create();
             }
             catch(AnalysisStopException e)
             {

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 using CompileLib.Parsing;
 
+#warning NEED TO BE FIXED
 namespace CompileLib.Semantics
 {
     internal class SearchLanguageParser
@@ -27,9 +28,9 @@ namespace CompileLib.Semantics
 
         [SetTag("func")]
         public static SearchFunction ReadFunction(
-            [RequireTags("var")] Token name,
+            [RequireTags("var")] Parsed<string> name,
             [Keywords("(")] string brOpen,
-            [Optional(false)][RequireTags("func.params")] List<Token>? parameters,
+            [Optional(false)][RequireTags("func.params")] List<Parsed<string>>? parameters,
             [Keywords(")")] string brClose,
             [Keywords("=")] string assign,
             [RequireTags("expr")] SearchRule expr,
@@ -53,20 +54,20 @@ namespace CompileLib.Semantics
         }
 
         [SetTag("func.params")]
-        public static List<Token> ReadParams(
-            [RequireTags("var")] Token param,
+        public static List<Parsed<string>> ReadParams(
+            [RequireTags("var")] Parsed<string> param,
             [Optional(false)][Keywords(",")] string separator,
-            [TogetherWith][RequireTags("func.params")] List<Token> tail
+            [TogetherWith][RequireTags("func.params")] List<Parsed<string>> tail
             )
         {
-            if(separator is null) return new List<Token> { param };
+            if(separator is null) return new List<Parsed<string>> { param };
             tail.Add(param);
             return tail;
         }
 
         [SetTag("atom-func")]
-        public static Token ReadAtomFunc(
-            [Keywords("name", "type", "relation", "attribute")] Token func
+        public static Parsed<string> ReadAtomFunc(
+            [Keywords("name", "type", "relation", "attribute")] Parsed<string> func
             )
         {
             return func;
@@ -74,7 +75,7 @@ namespace CompileLib.Semantics
 
         [SetTag("expr-A")]
         public static SearchRule ReadCall(
-            [RequireTags("var", "atom-func")] Token name,
+            [RequireTags("var", "atom-func")] Parsed<string> name,
             [Keywords("(")] string brOpen,
             [Optional(false)][RequireTags("call-args")] List<string>? parameters,
             [Keywords(")")] string brClose
@@ -108,7 +109,7 @@ namespace CompileLib.Semantics
 
         [SetTag("expr-A")]
         public static SearchRule ReadExprInBrackets(
-            [Keywords("(")] Token brOpen,
+            [Keywords("(")] Parsed<string> brOpen,
             [RequireTags("expr")] SearchRule expr,
             [Keywords(")")] string brClose
             )
@@ -186,7 +187,7 @@ namespace CompileLib.Semantics
             SearchEngine engine = new();
             try
             {
-                return SLParsingEngine.Parse<SearchEngine>(code);
+                return SLParsingEngine.Parse<SearchEngine>(code).Self;
             }
             catch (AnalysisStopException e)
             {
